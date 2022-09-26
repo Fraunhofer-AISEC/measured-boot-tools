@@ -1,0 +1,3 @@
+*.o
+.vscode
+parse-srtm-pcrs
