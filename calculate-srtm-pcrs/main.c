@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include "libgen.h"
 
-#include <openssl/types.h>
 #include <openssl/pkcs7.h>
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
