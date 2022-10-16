@@ -113,7 +113,7 @@ main(int argc, char *argv[])
     };
 
     while (argc > 0) {
-        if ((!strcmp(argv[0], "-h") || !strcmp(argv[0], "--format")) && argc >= 2) {
+        if ((!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) && argc >= 2) {
             print_usage(progname);
             goto out;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
