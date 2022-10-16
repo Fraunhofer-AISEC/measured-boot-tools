@@ -24,5 +24,5 @@ sudo make install
 ## Run
 
 ```h
-sudo ./tpm-parse-ima-log
+sudo ./parse-ima-log
 ```

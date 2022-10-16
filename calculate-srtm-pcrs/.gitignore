@@ -1,5 +1,4 @@
 *.o
 .vscode
-tpm-calculate-srtm-pcrs
 calculate-srtm-pcrs
 run.sh

@@ -701,7 +701,9 @@ print_usage(const char *progname)
     printf("\t-e,  --eventlog\t\t\tPrint detailed eventlog\n");
     printf("\t-s,  --summary\t\t\tPrint final PCR values\n");
     printf("\t-p,  --pcrs <num[,num...]>\tPCRs to be calculated\n");
-    printf("\t-d,  --debug\t\t\tPrint debug output\n");
+    printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple -d possible)\n");
+    printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
+    printf("\t-c,  --config\t\t\tPath to configuration file\n");
     printf("\n");
 }
 

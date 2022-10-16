@@ -35,7 +35,7 @@ sudo make install
 ## Usage
 
 ```sh
-tpm-calculate-srtm-pcrs [options...]
+calculate-srtm-pcrs [options...]
 	-k,  --kernel <file>		The filename of the kernel image
 	-r,  --ramdisk <file>		The filename of the initramfs
 	-o,  --ovmf <file>			The filename of the OVMF.fd file
@@ -51,11 +51,10 @@ tpm-calculate-srtm-pcrs [options...]
 ## Example Usage
 
 ```sh
-./tpm-calculate-srtm-pcrs \
+./calculate-srtm-pcrs \
 	--kernel kernel-linux-amd64-virtio-systemd-debug.bzImage \
 	--ramdisk initrd-linux-amd64-virtio-systemd-debug.cpio.zst \
-	--ovmf-code OVMF_CODE.fd \
-	--ovmf-vars OVMF_VARS.fd \
+	--ovmf-code OVMF.fd \
 	--format json \
 	--pcrs 1,3,4,5,6,7 \
 	--eventlog \

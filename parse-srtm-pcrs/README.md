@@ -28,8 +28,8 @@ sudo make install
 
 ```sh
 # Usage
-tpm-parse-srtm-pcrs [-p|--pcrs <num>[,<num>]] [-f|--format text|json]
+parse-srtm-pcrs [-p|--pcrs <num>[,<num>]] [-f|--format text|json]
 
 # Example
-sudo tpm-parse-srtm-pcrs -p 0,1,2,3,4,5,6,7 -f json
+parse-srtm-pcrs -p 0,1,2,3,4,5,6,7 -f json
 ```
