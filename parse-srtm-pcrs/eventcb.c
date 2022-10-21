@@ -332,7 +332,7 @@ event_no_action(void *d, EV_NO_ACTION_STRUCT *data, size_t size, uint32_t eventl
             memcmp(data->Signature, STARTUP_LOCALITY_SIGNATURE,
                    sizeof(STARTUP_LOCALITY_SIGNATURE)) == 0) {
             ADD_EVLOG_DESCRIPTION(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                                  cb_data->format, "StartupLocality: %u\n",
+                                  cb_data->format, "StartupLocality: %u",
                                   data->Cases.StartupLocality);
             return true;
         }
