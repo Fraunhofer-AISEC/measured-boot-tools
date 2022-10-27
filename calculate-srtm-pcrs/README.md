@@ -76,8 +76,36 @@ be set as well.
 
 Therefore, for calculating PCR0 and PCR4, a configuration file path must be specified via the
 `-c|--config` command line argument. The configuration file must contain the offsets and the
-values (in hex) separated by `=`. An example configuration file is provided in `configs/`.
+values (in hex) separated by `=`. Example configurations are provided in `configs/`.
 
+For the `*-debug.cfg` configurations, edk2 was built with the following flags:
+
+```sh
+build \
+-DDEBUG_ON_SERIAL_PORT \
+-DTPM2_ENABLE=TRUE \
+-DSECURE_BOOT_ENABLE=TRUE \
+-DFD_SIZE_2MB \
+-n "$(nproc)" \
+-b DEBUG \
+-a X64 \
+-t GCC5 \
+-p OvmfPkg/OvmfPkgX64.dsc
+```
+
+For the `*-release.cfg` configurations, edk2 was built with the following flags:
+
+```sh
+build \
+-DTPM2_ENABLE=TRUE \
+-DSECURE_BOOT_ENABLE=TRUE \
+-DFD_SIZE_2MB \
+-n "$(nproc)" \
+-b RELEASE \
+-a X64 \
+-t GCC5 \
+-p OvmfPkg/OvmfPkgX64.dsc
+```
 
 - [1] https://github.com/tianocore/edk2/blob/master/OvmfPkg/PlatformPei/Platform.c#L44
 - [2] https://www.kernel.org/doc/html/latest/x86/boot.html?highlight=boot
