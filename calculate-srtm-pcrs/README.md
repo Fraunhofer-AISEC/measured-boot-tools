@@ -78,22 +78,7 @@ Therefore, for calculating PCR0 and PCR4, a configuration file path must be spec
 `-c|--config` command line argument. The configuration file must contain the offsets and the
 values (in hex) separated by `=`. Example configurations are provided in `configs/`.
 
-For the `*-debug.cfg` configurations, edk2 was built with the following flags:
-
-```sh
-build \
--DDEBUG_ON_SERIAL_PORT \
--DTPM2_ENABLE=TRUE \
--DSECURE_BOOT_ENABLE=TRUE \
--DFD_SIZE_2MB \
--n "$(nproc)" \
--b DEBUG \
--a X64 \
--t GCC5 \
--p OvmfPkg/OvmfPkgX64.dsc
-```
-
-For the `*-release.cfg` configurations, edk2 was built with the following flags:
+For the configurations, edk2 was built with the following flags:
 
 ```sh
 build \
