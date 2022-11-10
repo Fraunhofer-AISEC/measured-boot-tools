@@ -91,7 +91,7 @@ event_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
 
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                  "{\n\t\"type\":\"TPM Verification\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n",
+                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n",
                   eventtype_to_string(eventhdr->EventType), eventhdr->PCRIndex);
     } else {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n",
