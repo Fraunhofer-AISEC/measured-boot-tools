@@ -377,11 +377,11 @@ ima_parse_binary_runtime_measurements(uint8_t *buf, size_t size)
         if (first) {
             first = false;
             printf(
-                "[{\n\t\"type\":\"TPM Verification\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
+                "[{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
                 module_name, h);
         } else {
             printf(
-                ",\n{\n\t\"type\":\"TPM Verification\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
+                ",\n{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
                 module_name, h);
         }
 
