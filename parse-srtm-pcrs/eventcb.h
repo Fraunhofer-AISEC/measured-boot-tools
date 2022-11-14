@@ -16,7 +16,13 @@ typedef struct {
 } cb_data_t;
 
 bool
-event_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in);
+event_specid_cb(TCG_EVENT const *event, void *data);
+
+bool
+event_header_cb(TCG_EVENT const *event_hdr, size_t size, void *data);
+
+bool
+event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in);
 
 bool
 event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in);

@@ -81,7 +81,58 @@ contains(uint32_t *pcr_nums, uint32_t len, uint32_t value);
     } while (0)
 
 bool
-event_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
+event_specid_cb(TCG_EVENT const *event, void *data)
+{
+    cb_data_t *cb_data = (cb_data_t *)data;
+    char **eventlog = cb_data->eventlog;
+
+    char hexstr[DIGEST_HEX_STRING_MAX] = {
+        0,
+    };
+    bytes_to_str(event->digest, sizeof(event->digest), hexstr, sizeof(hexstr));
+
+    active_pcr = event->pcrIndex;
+
+    if (cb_data->format == FORMAT_JSON) {
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+    } else {
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n\tsha256: %s\n",
+                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+    }
+
+    return true;
+}
+
+bool
+event_header_cb(TCG_EVENT const *event, size_t size, void *data)
+{
+    (void)size;
+    cb_data_t *cb_data = (cb_data_t *)data;
+    char **eventlog = cb_data->eventlog;
+
+    char hexstr[DIGEST_HEX_STRING_MAX] = {
+        0,
+    };
+    bytes_to_str(event->digest, sizeof(event->digest), hexstr, sizeof(hexstr));
+
+    active_pcr = event->pcrIndex;
+
+    if (cb_data->format == FORMAT_JSON) {
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+    } else {
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n\tsha256: %s\n",
+                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+    }
+
+    return true;
+}
+
+bool
+event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
 {
     (void)size;
     cb_data_t *cb_data = (cb_data_t *)data_in;
@@ -118,6 +169,8 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
         } else {
             ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "\tsha256: %s\n", hexstr);
         }
+    } else {
+        ERROR("Algorithm ID %u not supported\n", digest->AlgorithmId);
     }
 
     return true;
