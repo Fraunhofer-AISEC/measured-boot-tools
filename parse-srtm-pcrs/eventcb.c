@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <uchar.h>
 #include <ctype.h>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
 
 #include "efi_event.h"
 #include "tpm2_eventlog.h"
@@ -15,6 +17,7 @@
 
 #include "common.h"
 #include "eventcb.h"
+#include "hash.h"
 
 /* converting byte buffer to hex string requires 2x, plus 1 for '\0' */
 #define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count)*2 + 1)
@@ -24,6 +27,8 @@
 #define VAR_DATA_HEX_SIZE(data) BYTES_TO_HEX_STRING_SIZE(data->VariableDataLength)
 
 static int active_pcr;
+// TODO better solution
+static bool no_action_event_pending = false;
 
 static void
 bytes_to_str(uint8_t const *buf, size_t size, char *dest, size_t dest_size);
@@ -43,8 +48,6 @@ static bool
 event_uefi_platfwblob(void *d, UEFI_PLATFORM_FIRMWARE_BLOB *data);
 static bool
 event_uefi_image_load(void *d, UEFI_IMAGE_LOAD_EVENT *data, size_t size);
-static bool
-event_no_action(void *d, EV_NO_ACTION_STRUCT *data, size_t size, uint32_t eventlog_version);
 static bool
 event_uefi_action(void *data, UINT8 const *action, size_t size);
 static bool
@@ -86,6 +89,11 @@ event_specid_cb(TCG_EVENT const *event, void *data)
     cb_data_t *cb_data = (cb_data_t *)data;
     char **eventlog = cb_data->eventlog;
 
+    // Event type EV_NO_ACTION is not extended into PCRs
+    if (event->eventType == EV_NO_ACTION) {
+        return true;
+    }
+
     char hexstr[DIGEST_HEX_STRING_MAX] = {
         0,
     };
@@ -94,12 +102,14 @@ event_specid_cb(TCG_EVENT const *event, void *data)
     active_pcr = event->pcrIndex;
 
     if (cb_data->format == FORMAT_JSON) {
-        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
-                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+        ADD_EVLOG(
+            eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+            eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
     } else {
-        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n\tsha256: %s\n",
-                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+                  "name: %s\n\tpcr: %d\n\tsha256: %s\n", eventtype_to_string(event->eventType),
+                  event->pcrIndex, hexstr);
     }
 
     return true;
@@ -112,6 +122,11 @@ event_header_cb(TCG_EVENT const *event, size_t size, void *data)
     cb_data_t *cb_data = (cb_data_t *)data;
     char **eventlog = cb_data->eventlog;
 
+    // Event type EV_NO_ACTION is not extended into PCRs
+    if (event->eventType == EV_NO_ACTION) {
+        return true;
+    }
+
     char hexstr[DIGEST_HEX_STRING_MAX] = {
         0,
     };
@@ -120,12 +135,14 @@ event_header_cb(TCG_EVENT const *event, size_t size, void *data)
     active_pcr = event->pcrIndex;
 
     if (cb_data->format == FORMAT_JSON) {
-        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
-                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+        ADD_EVLOG(
+            eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+            eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
     } else {
-        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n\tsha256: %s\n",
-                  eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+                  "name: %s\n\tpcr: %d\n\tsha256: %s\n", eventtype_to_string(event->eventType),
+                  event->pcrIndex, hexstr);
     }
 
     return true;
@@ -139,6 +156,12 @@ event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
     char **eventlog = cb_data->eventlog;
 
     active_pcr = eventhdr->PCRIndex;
+
+    // Event type EV_NO_ACTION is not extended into PCRs
+    if (eventhdr->EventType == EV_NO_ACTION) {
+        no_action_event_pending = true;
+        return true;
+    }
 
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
@@ -158,6 +181,12 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
     cb_data_t *cb_data = (cb_data_t *)data_in;
     char **eventlog = cb_data->eventlog;
 
+    // No action event is not extended
+    if (no_action_event_pending) {
+        no_action_event_pending = false;
+        return true;
+    }
+
     if (digest->AlgorithmId == TPM2_ALG_SHA256) {
         char hexstr[DIGEST_HEX_STRING_MAX] = {
             0,
@@ -172,6 +201,13 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
     } else {
         ERROR("Algorithm ID %u not supported\n", digest->AlgorithmId);
     }
+
+    if (active_pcr >= MAX_PCRS) {
+        ERROR("Active PCR %d invalid\n", active_pcr);
+        return false;
+    }
+    hash_extend(EVP_sha256(), cb_data->calc_pcrs[active_pcr], (uint8_t *)digest->Digest,
+                SHA256_DIGEST_LENGTH);
 
     return true;
 }
@@ -208,8 +244,8 @@ event_data_cb(TCG_EVENT2 const *event, UINT32 type, void *data, uint32_t eventlo
     case EV_EFI_GPT_EVENT:
         return event_gpt(data, (UEFI_GPT_DATA *)event->Event, event->EventSize, eventlog_version);
     case EV_NO_ACTION:
-        return event_no_action(data, (EV_NO_ACTION_STRUCT *)event->Event, event->EventSize,
-                               eventlog_version);
+        // Event EV_NO_ACTION is not extended
+        return true;
     default:
         ADD_EVLOG_DESCRIPTION(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, cb_data->format,
                               "");
@@ -370,32 +406,6 @@ event_uefi_image_load(void *d, UEFI_IMAGE_LOAD_EVENT *data, size_t size)
                           data->ImageLinkTimeAddress, data->LengthOfDevicePath, buf);
 
     free(buf);
-    return true;
-}
-
-/* TCG PC Client PFP section 9.2.6 */
-static bool
-event_no_action(void *d, EV_NO_ACTION_STRUCT *data, size_t size, uint32_t eventlog_version)
-{
-    cb_data_t *cb_data = (cb_data_t *)d;
-    char **eventlog = cb_data->eventlog;
-
-    if (eventlog_version == 2) {
-        if (size > sizeof(STARTUP_LOCALITY_SIGNATURE) &&
-            memcmp(data->Signature, STARTUP_LOCALITY_SIGNATURE,
-                   sizeof(STARTUP_LOCALITY_SIGNATURE)) == 0) {
-            ADD_EVLOG_DESCRIPTION(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                                  cb_data->format, "StartupLocality: %u",
-                                  data->Cases.StartupLocality);
-            return true;
-        }
-    }
-    char hexstr[EVENT_BUF_MAX] = {
-        0,
-    };
-    bytes_to_str((UINT8 *)data, size, hexstr, sizeof(hexstr));
-    ADD_EVLOG_DESCRIPTION(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, cb_data->format, "%s",
-                          hexstr);
     return true;
 }
 

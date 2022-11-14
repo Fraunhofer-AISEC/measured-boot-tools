@@ -13,6 +13,7 @@ typedef struct {
     format_t format;
     size_t len_pcr_nums;
     uint32_t *pcr_nums;
+    uint8_t calc_pcrs[MAX_PCRS][SHA256_DIGEST_LENGTH];
 } cb_data_t;
 
 bool

@@ -57,4 +57,7 @@
 #define LOG_WARN(fmt, ...) print(DBG_WARN, "WARN: " fmt, ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...) print(DBG_INFO, fmt, ##__VA_ARGS__)
 
+void
+print_data(const uint8_t *buf, size_t len, const char *info);
+
 #endif

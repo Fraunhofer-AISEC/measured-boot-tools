@@ -16,11 +16,13 @@ INC_DIRS := \
 	thirdparty/tss2 \
 	thirdparty
 
-LFLAGS :=
+LFLAGS := -lcrypto
 
 CSRS := \
 	main.c \
 	eventcb.c \
+	hash.c \
+	common.c \
 	thirdparty/tpm2-tools/tpm2_eventlog.c \
 	thirdparty/tpm2-tools/tpm2_alg_util.c \
 

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <uchar.h>
+#include <openssl/sha.h>
 
 #include "efi_event.h"
 #include "tpm2_eventlog.h"
@@ -91,12 +92,14 @@ print_usage(const char *progname)
     INFO("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
     INFO(
         "\t-p,  --pcrs <nums>\t\tThe numbers of the PCRs to be parsed as a comma separated list without spaces");
+    INFO("\t-s,  --summary\t\tPrint the final extended PCR values");
     INFO("\n");
 }
 
 int
 main(int argc, char *argv[])
 {
+    bool summary = false;
     uint32_t *pcr_nums = NULL;
     size_t len_pcr_nums = 0;
     format_t format = FORMAT_TEXT;
@@ -111,11 +114,16 @@ main(int argc, char *argv[])
         .len_pcr_nums = len_pcr_nums,
         .pcr_nums = pcr_nums,
     };
+    memset(cb_data.calc_pcrs, 0x0, sizeof(cb_data.calc_pcrs));
 
     while (argc > 0) {
-        if ((!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) && argc >= 2) {
+        if (!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) {
             print_usage(progname);
             goto out;
+        } else if (!strcmp(argv[0], "-s") || !strcmp(argv[0], "--summary")) {
+            summary = true;
+            argv++;
+            argc--;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
             if (!strcmp(argv[1], "json")) {
                 format = FORMAT_JSON;
@@ -183,6 +191,18 @@ main(int argc, char *argv[])
     }
     if (format == FORMAT_JSON) {
         printf("]\n");
+    }
+
+    if (summary) {
+        printf("SUMMARY -------------------------\n");
+        for (size_t i = 0; i < len_pcr_nums; i++) {
+            if (!cb_data.eventlog[pcr_nums[i]]) {
+                ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
+                return -1;
+            }
+            printf("PCR%d: ", pcr_nums[i]);
+            print_data(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
+        }
     }
 
     ret = 0;
