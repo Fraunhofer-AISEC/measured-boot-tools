@@ -61,7 +61,7 @@ eventlog_add(char **dest, format_t format, const char *name, uint32_t pcr, uint8
     if (format == FORMAT_JSON) {
         ret = snprintf(s, sizeof(s),
                        "{"
-                       "\n\t\"type\":\"TPM Verification\","
+                       "\n\t\"type\":\"TPM Reference Value\","
                        "\n\t\"name\":\"%s\","
                        "\n\t\"pcr\":%d,"
                        "\n\t\"sha256\":\"%s\","
@@ -951,7 +951,7 @@ main(int argc, char *argv[])
         for (uint32_t i = 0; i < len_pcr_nums; i++) {
             if (format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TPM Verification\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
+                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
                     pcr_nums[i], pcr_nums[i]);
                 print_data_no_lf(pcr[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
                 printf("\"\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
