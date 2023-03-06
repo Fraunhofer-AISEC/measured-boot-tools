@@ -175,6 +175,19 @@ event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
     return true;
 }
 
+const char *get_algo_str(TPM2_ALG_ID id)
+{
+    switch(id) {
+        case TPM2_ALG_SHA1: return "sha1";
+        case TPM2_ALG_SHA256: return "sha256";
+        case TPM2_ALG_SHA384: return "sha384";
+        case TPM2_ALG_SHA512: return "sha512";
+    default:
+        ERROR("Algorithm ID %u not supported\n", id);
+    }
+    return "unknown";
+}
+
 bool
 event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
 {
@@ -187,19 +200,18 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
         return true;
     }
 
-    if (digest->AlgorithmId == TPM2_ALG_SHA256) {
-        char hexstr[DIGEST_HEX_STRING_MAX] = {
-            0,
-        };
-        bytes_to_str(digest->Digest, size, hexstr, sizeof(hexstr));
-        if (cb_data->format == FORMAT_JSON) {
-            ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "\t\"sha256\":\"%s\",\n",
-                      hexstr);
-        } else {
-            ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "\tsha256: %s\n", hexstr);
-        }
+    const char *algo = get_algo_str(digest->AlgorithmId);
+
+    char hexstr[DIGEST_HEX_STRING_MAX] = {
+        0,
+    };
+    bytes_to_str(digest->Digest, size, hexstr, sizeof(hexstr));
+    if (cb_data->format == FORMAT_JSON) {
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "\t\"%s\":\"%s\",\n",
+                    algo, hexstr);
     } else {
-        ERROR("Algorithm ID %u not supported\n", digest->AlgorithmId);
+        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "\t%s: %s\n",
+                    algo, hexstr);
     }
 
     if (active_pcr >= MAX_PCRS) {
