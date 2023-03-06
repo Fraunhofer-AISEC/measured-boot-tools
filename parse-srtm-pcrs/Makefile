@@ -37,7 +37,7 @@ parse-srtm-pcrs:
 
 .PHONY: install
 install:
-	install -v -m 0700 ./parse-srtm-pcrs /usr/bin/
+	install -v -m 0755 ./parse-srtm-pcrs /usr/bin/
 
 .PHONY: clean
 clean:

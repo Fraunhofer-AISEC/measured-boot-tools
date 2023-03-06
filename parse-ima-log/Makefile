@@ -35,7 +35,7 @@ parse-ima-log:
 
 .PHONY: install
 install:
-	install -v -m 0700 ./parse-ima-log /usr/bin/
+	install -v -m 0755 ./parse-ima-log /usr/bin/
 
 .PHONY: clean
 clean:

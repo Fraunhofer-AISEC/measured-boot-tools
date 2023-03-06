@@ -46,7 +46,7 @@ calculate-srtm-pcrs:
 
 .PHONY: install
 install:
-	install -v -m 0700 ./calculate-srtm-pcrs /usr/bin/
+	install -v -m 0755 ./calculate-srtm-pcrs /usr/bin/
 
 .PHONY: clean
 clean:
