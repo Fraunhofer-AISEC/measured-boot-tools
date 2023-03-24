@@ -16,6 +16,8 @@
 #include "common.h"
 #include "eventcb.h"
 
+#define BIOS_MEASUREMENTS "/sys/kernel/security/tpm0/binary_bios_measurements"
+
 static int
 read_file_chunk(FILE *f, uint8_t *buf, size_t len, size_t *out_len)
 {
@@ -89,10 +91,12 @@ static void
 print_usage(const char *progname)
 {
     INFO("\nUsage: %s [options...]", progname);
+    INFO("\t-h,  --help\t\tPrint help text");
     INFO("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
     INFO(
         "\t-p,  --pcrs <nums>\t\tThe numbers of the PCRs to be parsed as a comma separated list without spaces");
     INFO("\t-s,  --summary\t\tPrint the final extended PCR values");
+    INFO("\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
     INFO("\n");
 }
 
@@ -104,6 +108,7 @@ main(int argc, char *argv[])
     size_t len_pcr_nums = 0;
     format_t format = FORMAT_TEXT;
     const char *progname = argv[0];
+    char *input_file = NULL;
     int ret = -1;
     argv++;
     argc--;
@@ -152,6 +157,15 @@ main(int argc, char *argv[])
             }
             argv += 2;
             argc -= 2;
+        } else if ((!strcmp(argv[0], "-i") || !strcmp(argv[0], "--in")) && argc >= 2) {
+            input_file = (char *)malloc(strlen(argv[1]) + 1);
+            if (!input_file) {
+                printf("Failed to allocate memory\n");
+                goto out;
+            }
+            strncpy(input_file, argv[1], strlen(argv[1]) + 1);
+            argv += 2;
+            argc -= 2;
         } else {
             ERROR("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
@@ -169,7 +183,7 @@ main(int argc, char *argv[])
     cb_data.len_pcr_nums = len_pcr_nums;
     cb_data.pcr_nums = pcr_nums;
 
-    if (tpm_parse_eventlog(&cb_data, "/sys/kernel/security/tpm0/binary_bios_measurements") < 0) {
+    if (tpm_parse_eventlog(&cb_data, input_file ? input_file : BIOS_MEASUREMENTS) < 0) {
         ERROR("Failed to parse eventlog\n");
         goto out;
     }
@@ -208,6 +222,8 @@ main(int argc, char *argv[])
     ret = 0;
 
 out:
+    if (input_file)
+        free(input_file);
     if (pcr_nums)
         free(pcr_nums);
     for (uint32_t i = 0; i < MAX_PCRS; i++)

@@ -1,7 +1,9 @@
 # README
 
-This tool parses the binary log from `/sys/kernel/security/tpm0/binary_bios_measurements` containing
-the boot measurements. The tool can format the output as text or as json.
+This tool parses the TPM binary log from containing the boot measurements. By default, it uses
+`/sys/kernel/security/tpm0/binary_bios_measurements`  or, if specified, the file given via the
+`--in` option.
+The tool can format the output as text or as json.
 
 The tool must usually run with root privileges, otherwise the binary bios measurements file
 is not available.
@@ -28,7 +30,7 @@ sudo make install
 
 ```sh
 # Usage
-parse-srtm-pcrs [-p|--pcrs <num>[,<num>]] [-f|--format text|json]
+parse-srtm-pcrs [-p|--pcrs <num>[,<num>]] [-f|--format text|json] [-i|--in <input-file>] [-h|--help]
 
 # Example
 parse-srtm-pcrs -p 0,1,2,3,4,5,6,7 -f json
