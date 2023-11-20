@@ -32,6 +32,11 @@
 
 typedef enum { FORMAT_JSON, FORMAT_TEXT } format_t;
 
+typedef struct {
+    format_t format;
+    char *log[MAX_PCRS];
+} eventlog_t;
+
 volatile bool debug_output = false;
 
 static char *
@@ -47,7 +52,7 @@ encode_hex(const uint8_t *bin, int length)
 }
 
 static int
-eventlog_add(char **dest, format_t format, const char *name, uint32_t pcr, uint8_t *hash,
+evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr, uint8_t *hash,
              const char *desc)
 {
     int ret;
@@ -58,7 +63,7 @@ eventlog_add(char **dest, format_t format, const char *name, uint32_t pcr, uint8
     }
 
     char s[1024] = { 0 };
-    if (format == FORMAT_JSON) {
+    if (evlog->format == FORMAT_JSON) {
         ret = snprintf(s, sizeof(s),
                        "{"
                        "\n\t\"type\":\"TPM Reference Value\","
@@ -68,7 +73,7 @@ eventlog_add(char **dest, format_t format, const char *name, uint32_t pcr, uint8
                        "\n\t\"description\":\"%s\""
                        "\n},\n",
                        name, pcr, hashstr, desc);
-    } else if (format == FORMAT_TEXT) {
+    } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
                        "name: %s"
                        "\n\tpcr: %d"
@@ -82,24 +87,24 @@ eventlog_add(char **dest, format_t format, const char *name, uint32_t pcr, uint8
         goto out;
     }
 
-    if (!*dest) {
+    if (!evlog->log[pcr_index]) {
         size_t size = strlen(s) + 1;
-        *dest = (char *)malloc(size);
-        if (!*dest) {
+        evlog->log[pcr_index] = (char *)malloc(size);
+        if (!evlog->log[pcr_index]) {
             printf("Failed to allocate memory\n");
             ret = -1;
             goto out;
         }
-        strncpy(*dest, s, size);
+        strncpy(evlog->log[pcr_index], s, size);
     } else {
-        size_t size = strlen(*dest) + strlen(s) + 1;
-        *dest = (char *)realloc(*dest, size);
-        if (!*dest) {
+        size_t size = strlen(evlog->log[pcr_index]) + strlen(s) + 1;
+        evlog->log[pcr_index] = (char *)realloc(evlog->log[pcr_index], size);
+        if (!evlog->log[pcr_index]) {
             printf("Failed to allocate memory\n");
             ret = -1;
             goto out;
         }
-        strncat(*dest, s, strlen(s) + 1);
+        strncat(evlog->log[pcr_index], s, strlen(s) + 1);
     }
 
 out:
@@ -113,12 +118,11 @@ out:
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  * @param ovmf_file The path to the OVMF.fd file that should be used for the calculations
  */
 static int
-calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_file)
+calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
 {
     int ret = -1;
     uint8_t *fvmain_compact_buf = NULL;
@@ -136,7 +140,7 @@ calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_
     uint8_t hash_ev_s_crtm_version[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_s_crtm_version, (uint8_t *)ev_s_crtm_version,
              sizeof(ev_s_crtm_version));
-    eventlog_add(&eventlog[0], format, "EV_S_CRTM_VERSION", 0, hash_ev_s_crtm_version,
+    evlog_add(evlog, 0, "EV_S_CRTM_VERSION", 0, hash_ev_s_crtm_version,
                  "CRTM Version String");
 
     DEBUG("Extracting FVMAIN_COMPACT.Fv from OVMF.fd\n");
@@ -183,7 +187,7 @@ calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_
         printf("Failed to measure PEIFV\n");
         goto out;
     }
-    eventlog_add(&eventlog[0], format, "PEIFV", 0, peifv_hash, "OVMF UEFI PEI Firmware Volume");
+    evlog_add(evlog, 0, "PEIFV", 0, peifv_hash, "OVMF UEFI PEI Firmware Volume");
 
     // Measure DXEFV
     uint8_t dxefv_hash[SHA256_DIGEST_LENGTH];
@@ -192,7 +196,7 @@ calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_
         printf("Failed to measure DXEFV\n");
         goto out;
     }
-    eventlog_add(&eventlog[0], format, "DXEFV", 0, dxefv_hash, "OVMF UEFI DXE Firmware Volume");
+    evlog_add(evlog, 0, "DXEFV", 0, dxefv_hash, "OVMF UEFI DXE Firmware Volume");
 
     // EV_SEPARATOR
     ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -203,7 +207,7 @@ calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    eventlog_add(&eventlog[0], format, "EV_SEPARATOR", 0, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 0, "EV_SEPARATOR", 0, hash_ev_separator, "HASH(00000000)");
 
     // Extend all values
     hash_extend(EVP_sha256(), pcr, hash_ev_s_crtm_version, SHA256_DIGEST_LENGTH);
@@ -232,11 +236,10 @@ out:
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr1(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr1(uint8_t *pcr, eventlog_t *evlog)
 {
     int ret = -1;
 
@@ -247,7 +250,7 @@ calculate_pcr1(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
              sizeof(efi_variable_boot));
-    eventlog_add(&eventlog[1], format, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot,
+    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot,
                  "Hash EFI Variable Boot: Hash(0000)");
 
     // EV_EFI_VARIABLE_BOOT
@@ -262,8 +265,8 @@ calculate_pcr1(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_efi_variable_boot2[SHA256_DIGEST_LENGTH];
     // Hash: 3197be1e300fa1600d1884c3a4bd4a90a15405bfb546cf2e6cf6095f8c362a93
     hash_buf(EVP_sha256(), hash_efi_variable_boot2, (uint8_t *)efi_variable_boot2, len);
-    eventlog_add(
-        &eventlog[1], format, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot2,
+    evlog_add(
+        evlog, 1, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot2,
         "HASH(090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400)");
 
     // EV_SEPARATOR
@@ -274,7 +277,7 @@ calculate_pcr1(uint8_t *pcr, char **eventlog, format_t format)
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    eventlog_add(&eventlog[1], format, "EV_SEPARATOR", 1, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 1, "EV_SEPARATOR", 1, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot2, SHA256_DIGEST_LENGTH);
@@ -297,12 +300,11 @@ out:
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of th PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  * @param ovmf_file The path to the OVMF.fd file that should be used for the calculations
  */
 static int
-calculate_pcr2(uint8_t *pcr, char **eventlog, format_t format, char **drivers, size_t num_drivers)
+calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drivers)
 {
     int ret = -1;
     uint8_t *ev_separator = NULL;
@@ -326,7 +328,7 @@ calculate_pcr2(uint8_t *pcr, char **eventlog, format_t format, char **drivers, s
             printf("printf: Failed to measure PE Image: %llx\n", status);
             return -1;
         }
-        eventlog_add(&eventlog[2], format, "EV_EFI_BOOT_SERVICES_DRIVER", 2, hash_driver,
+        evlog_add(evlog, 2, "EV_EFI_BOOT_SERVICES_DRIVER", 2, hash_driver,
                      basename((char *)drivers[i]));
 
         hash_extend(EVP_sha256(), pcr, hash_driver, SHA256_DIGEST_LENGTH);
@@ -343,7 +345,7 @@ calculate_pcr2(uint8_t *pcr, char **eventlog, format_t format, char **drivers, s
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    eventlog_add(&eventlog[2], format, "EV_SEPARATOR", 2, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 2, "EV_SEPARATOR", 2, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -362,11 +364,10 @@ out:
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr3(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -379,7 +380,7 @@ calculate_pcr3(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    eventlog_add(&eventlog[3], format, "EV_SEPARATOR", 3, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 3, "EV_SEPARATOR", 3, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -392,12 +393,11 @@ calculate_pcr3(uint8_t *pcr, char **eventlog, format_t format)
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  * @param kernel_file The path of the kernel image (.bzImage) to use for the calculations
  */
 static int
-calculate_pcr4(uint8_t *pcr, char **eventlog, format_t format, const char *kernel_file,
+calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
                config_t *config)
 {
     int ret = -1;
@@ -426,7 +426,7 @@ calculate_pcr4(uint8_t *pcr, char **eventlog, format_t format, const char *kerne
         printf("printf: Failed to measure PE Image: %llx\n", status);
         goto out;
     }
-    eventlog_add(&eventlog[4], format, "EV_EFI_BOOT_SERVICES_APPLICATION", 4, hash_kernel,
+    evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", 4, hash_kernel,
                  basename((char *)kernel_file));
 
     // TCG PCClient Firmware Spec: https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf 10.4.4
@@ -434,7 +434,7 @@ calculate_pcr4(uint8_t *pcr, char **eventlog, format_t format, const char *kerne
     char *action_data = "Calling EFI Application from Boot Option";
     uint8_t hash_efi_action[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action, (uint8_t *)action_data, strlen(action_data));
-    eventlog_add(&eventlog[4], format, "EV_EFI_ACTION", 4, hash_efi_action,
+    evlog_add(evlog, 4, "EV_EFI_ACTION", 4, hash_efi_action,
                  "HASH('Calling EFI Application from Boot Option')");
 
     // EV_SEPARATOR
@@ -446,7 +446,7 @@ calculate_pcr4(uint8_t *pcr, char **eventlog, format_t format, const char *kerne
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    eventlog_add(&eventlog[4], format, "EV_SEPARATOR", 4, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 4, "EV_SEPARATOR", 4, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_kernel, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_action, SHA256_DIGEST_LENGTH);
@@ -466,11 +466,10 @@ out:
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr5(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr5(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -483,14 +482,14 @@ calculate_pcr5(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    eventlog_add(&eventlog[5], format, "EV_SEPARATOR", 5, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 5, "EV_SEPARATOR", 5, hash_ev_separator, "HASH(00000000)");
 
     // EV_EFI_ACTION "Exit Boot Services Invocation"
     char *efi_action_boot_invocation = "Exit Boot Services Invocation";
     uint8_t hash_efi_action_boot_invocation[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action_boot_invocation, (uint8_t *)efi_action_boot_invocation,
              strlen(efi_action_boot_invocation));
-    eventlog_add(&eventlog[5], format, "EV_EFI_ACTION", 5, hash_efi_action_boot_invocation,
+    evlog_add(evlog, 5, "EV_EFI_ACTION", 5, hash_efi_action_boot_invocation,
                  "HASH('Exit Boot Services Invocation')");
 
     // EV_EFI_ACTION "Exit Boot Services Returned with Success"
@@ -498,7 +497,7 @@ calculate_pcr5(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_efi_action_boot_exit[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action_boot_exit, (uint8_t *)efi_action_boot_exit,
              strlen(efi_action_boot_exit));
-    eventlog_add(&eventlog[5], format, "EV_EFI_ACTION", 5, hash_efi_action_boot_exit,
+    evlog_add(evlog, 5, "EV_EFI_ACTION", 5, hash_efi_action_boot_exit,
                  "HASH('Exit Boot Services Returned with Success')");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
@@ -514,11 +513,10 @@ calculate_pcr5(uint8_t *pcr, char **eventlog, format_t format)
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr6(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr6(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -531,7 +529,7 @@ calculate_pcr6(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    eventlog_add(&eventlog[6], format, "EV_SEPARATOR", 6, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 6, "EV_SEPARATOR", 6, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -544,11 +542,10 @@ calculate_pcr6(uint8_t *pcr, char **eventlog, format_t format)
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr7(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -571,35 +568,35 @@ calculate_pcr7(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t var_data[1] = { 0 };
     uint64_t var_data_len = 1;
     MeasureVariable(hash_secure_boot, var_name_secure_boot, &var_guid1, var_data, var_data_len);
-    eventlog_add(&eventlog[7], format, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_secure_boot,
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_secure_boot,
                  "Variable 'SecureBoot'");
 
     // EV_EFI_VARIABLE_DRIVER_CONFIG 'PK'
     uint8_t hash_pk[SHA256_DIGEST_LENGTH];
     CHAR16 *var_name_pk = u"PK";
     MeasureVariable(hash_pk, var_name_pk, &var_guid1, NULL, 0);
-    eventlog_add(&eventlog[7], format, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_pk,
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_pk,
                  "Variable 'PK'");
 
     // EV_EFI_VARIABLE_DRIVER_CONFIG 'KEK'
     uint8_t hash_kek[SHA256_DIGEST_LENGTH];
     CHAR16 *var_name_kek = u"KEK";
     MeasureVariable(hash_kek, var_name_kek, &var_guid1, NULL, 0);
-    eventlog_add(&eventlog[7], format, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_kek,
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_kek,
                  "Variable 'KEK'");
 
     // EV_EFI_VARIABLE_DRIVER_CONFIG 'DB'
     uint8_t hash_db[SHA256_DIGEST_LENGTH];
     CHAR16 *var_name_db = u"db";
     MeasureVariable(hash_db, var_name_db, &var_guid2, NULL, 0);
-    eventlog_add(&eventlog[7], format, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_db,
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_db,
                  "Variable 'DB'");
 
     // EV_EFI_VARIABLE_DRIVER_CONFIG 'DBX'
     uint8_t hash_dbx[SHA256_DIGEST_LENGTH];
     CHAR16 *var_name_dbx = u"dbx";
     MeasureVariable(hash_dbx, var_name_dbx, &var_guid2, NULL, 0);
-    eventlog_add(&eventlog[7], format, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_dbx,
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_dbx,
                  "Variable 'DBX'");
 
     // EV_SEPARATOR
@@ -611,7 +608,7 @@ calculate_pcr7(uint8_t *pcr, char **eventlog, format_t format)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    eventlog_add(&eventlog[7], format, "EV_SEPARATOR", 7, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 7, "EV_SEPARATOR", 7, hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_secure_boot, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_pk, SHA256_DIGEST_LENGTH);
@@ -629,15 +626,13 @@ calculate_pcr7(uint8_t *pcr, char **eventlog, format_t format)
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr8(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr8(uint8_t *pcr, eventlog_t *evlog)
 {
     (void)pcr;
-    (void)eventlog;
-    (void)format;
+    (void)evlog;
     printf("Calculate PCR8 not implemented\n");
 
     return 0;
@@ -652,11 +647,10 @@ calculate_pcr8(uint8_t *pcr, char **eventlog, format_t format)
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
  * @param pcr Out buffer containing the final hash of the PCR
- * @param eventlog The event log to record the extend operations in
- * @param format The format of the eventlog
+ * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr9(uint8_t *pcr, char **eventlog, format_t format)
+calculate_pcr9(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -680,7 +674,7 @@ calculate_pcr9(uint8_t *pcr, char **eventlog, format_t format)
         if (ret) {
             return -1;
         }
-        eventlog_add(&eventlog[6], format, "GRUB Measurement", 9, hash[i], file_list[i]);
+        evlog_add(evlog, 6, "GRUB Measurement", 9, hash[i], file_list[i]);
 
         hash_extend(EVP_sha256(), pcr, hash[i], SHA256_DIGEST_LENGTH);
     }
@@ -724,15 +718,18 @@ main(int argc, char *argv[])
     const char *ramdisk = NULL;
     const char *ovmf = NULL;
     bool print_event_log = false;
-    char *eventlog[MAX_PCRS] = { 0 };
     bool print_summary = false;
     uint32_t *pcr_nums = NULL;
     size_t len_pcr_nums = 0;
-    format_t format = FORMAT_TEXT;
     const char *progname = argv[0];
     char *pcr_str = NULL;
     char **uefi_drivers = NULL;
     size_t num_uefi_drivers = 0;
+    eventlog_t evlog = {
+        .format = FORMAT_TEXT,
+        .log = { 0 }
+    };
+
     argv++;
     argc--;
 
@@ -765,9 +762,9 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
             if (!strcmp(argv[1], "json")) {
-                format = FORMAT_JSON;
+                evlog.format = FORMAT_JSON;
             } else if (!strcmp(argv[1], "text")) {
-                format = FORMAT_TEXT;
+                evlog.format = FORMAT_TEXT;
             } else {
                 printf("Unknown format '%s'\n", argv[1]);
                 print_usage(progname);
@@ -860,61 +857,61 @@ main(int argc, char *argv[])
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
 
     if (contains(pcr_nums, len_pcr_nums, 0)) {
-        if (calculate_pcr0(pcr[0], eventlog, format, ovmf)) {
+        if (calculate_pcr0(pcr[0], &evlog, ovmf)) {
             printf("Failed to calculate event log for PCR 0\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
-        if (calculate_pcr1(pcr[1], eventlog, format)) {
+        if (calculate_pcr1(pcr[1], &evlog)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 2)) {
-        if (calculate_pcr2(pcr[2], eventlog, format, uefi_drivers, num_uefi_drivers)) {
+        if (calculate_pcr2(pcr[2], &evlog, uefi_drivers, num_uefi_drivers)) {
             printf("Failed to calculate event log for PCR 2\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 3)) {
-        if (calculate_pcr3(pcr[3], eventlog, format)) {
+        if (calculate_pcr3(pcr[3], &evlog)) {
             printf("Failed to calculate event log for PCR 3\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 4)) {
-        if (calculate_pcr4(pcr[4], eventlog, format, kernel, &config)) {
+        if (calculate_pcr4(pcr[4], &evlog, kernel, &config)) {
             printf("Failed to calculate event log for PCR 4\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 5)) {
-        if (calculate_pcr5(pcr[5], eventlog, format)) {
+        if (calculate_pcr5(pcr[5], &evlog)) {
             printf("Failed to calculate event log for PCR 5\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 6)) {
-        if (calculate_pcr6(pcr[6], eventlog, format)) {
+        if (calculate_pcr6(pcr[6], &evlog)) {
             printf("Failed to calculate event log for PCR 6\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 7)) {
-        if (calculate_pcr7(pcr[7], eventlog, format)) {
+        if (calculate_pcr7(pcr[7], &evlog)) {
             printf("Failed to calculate event log for PCR 7\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 8)) {
-        if (calculate_pcr8(pcr[8], eventlog, format)) {
+        if (calculate_pcr8(pcr[8], &evlog)) {
             printf("Failed to calculate event log for PCR 8\n");
             goto out;
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 9)) {
-        if (calculate_pcr9(pcr[9], eventlog, format)) {
+        if (calculate_pcr9(pcr[9], &evlog)) {
             printf("Failed to calculate event log for PCR 9\n");
             goto out;
         }
@@ -923,20 +920,20 @@ main(int argc, char *argv[])
     // Print event log with all extend operations if specified
     if (print_event_log) {
         DEBUG("\nPCR EVENT LOG: \n");
-        if (format == FORMAT_JSON) {
+        if (evlog.format == FORMAT_JSON) {
             printf("[");
         }
         for (size_t i = 0; i < len_pcr_nums; i++) {
-            if (!eventlog[pcr_nums[i]]) {
+            if (!evlog.log[pcr_nums[i]]) {
                 printf("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
                 goto out;
             }
             // Remove last colon on final event log entry if format is json
-            if ((format == FORMAT_JSON) && (i == (len_pcr_nums)-1)) {
-                eventlog[pcr_nums[i]][strlen(eventlog[pcr_nums[i]]) - 2] = ']';
-                eventlog[pcr_nums[i]][strlen(eventlog[pcr_nums[i]]) - 1] = '\0';
+            if ((evlog.format == FORMAT_JSON) && (i == (len_pcr_nums)-1)) {
+                evlog.log[pcr_nums[i]][strlen(evlog.log[pcr_nums[i]]) - 2] = ']';
+                evlog.log[pcr_nums[i]][strlen(evlog.log[pcr_nums[i]]) - 1] = '\0';
             }
-            printf("%s", eventlog[pcr_nums[i]]);
+            printf("%s", evlog.log[pcr_nums[i]]);
         }
         printf("\n");
     }
@@ -945,7 +942,7 @@ main(int argc, char *argv[])
     if (print_summary) {
         DEBUG("\nPCR SUMMARY: \n");
         for (uint32_t i = 0; i < len_pcr_nums; i++) {
-            if (format == FORMAT_JSON) {
+            if (evlog.format == FORMAT_JSON) {
                 printf(
                     "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
                     pcr_nums[i], pcr_nums[i]);
@@ -956,7 +953,7 @@ main(int argc, char *argv[])
                 } else {
                     printf("\n");
                 }
-            } else if (format == FORMAT_TEXT) {
+            } else if (evlog.format == FORMAT_TEXT) {
                 printf("PCR%d: ", pcr_nums[i]);
                 print_data(pcr[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
             } else {
@@ -974,8 +971,8 @@ out:
     if (pcr_str)
         free(pcr_str);
     for (size_t i = 0; i < MAX_PCRS; i++) {
-        if (eventlog[i]) {
-            free(eventlog[i]);
+        if (evlog.log[i]) {
+            free(evlog.log[i]);
         }
     }
     if (uefi_drivers)
