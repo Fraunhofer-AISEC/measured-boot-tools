@@ -118,8 +118,7 @@ out:
  * @param ovmf_file The path to the OVMF.fd file that should be used for the calculations
  */
 static int
-calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_file,
-               config_t *config)
+calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_file)
 {
     int ret = -1;
     uint8_t *fvmain_compact_buf = NULL;
@@ -176,8 +175,6 @@ calculate_pcr0(uint8_t *pcr, char **eventlog, format_t format, const char *ovmf_
         ret = -1;
         goto out;
     }
-
-    config_prepare_peifv(fvmain, config);
 
     // Measure PEIFV
     uint8_t peifv_hash[SHA256_DIGEST_LENGTH];
@@ -813,9 +810,8 @@ main(int argc, char *argv[])
         }
     }
 
-    if (!config_file &&
-        (contains(pcr_nums, len_pcr_nums, 0) || contains(pcr_nums, len_pcr_nums, 4))) {
-        printf("Config file must be specified to calculate PCRs 0 and 4\n");
+    if (!config_file && contains(pcr_nums, len_pcr_nums, 4)) {
+        printf("Config file must be specified to calculate PCR4\n");
         print_usage(progname);
         goto out;
     }
@@ -864,7 +860,7 @@ main(int argc, char *argv[])
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
 
     if (contains(pcr_nums, len_pcr_nums, 0)) {
-        if (calculate_pcr0(pcr[0], eventlog, format, ovmf, &config)) {
+        if (calculate_pcr0(pcr[0], eventlog, format, ovmf)) {
             printf("Failed to calculate event log for PCR 0\n");
             goto out;
         }

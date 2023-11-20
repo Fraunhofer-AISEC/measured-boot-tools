@@ -49,77 +49,7 @@ trim(char *str)
 static int
 set_val(config_t *c, const char *var, const char *val)
 {
-    if (strcmp(var, "OvmfQemuFwCfgSupportedOffset") == 0) {
-        c->efi_qemu_fw_cfg_supported_offset = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfQemuFwCfgDmaSupportedOffset") == 0) {
-        c->efi_qemu_fw_cfg_dma_supported_offset = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfAddressEncMaskOffset") == 0) {
-        c->efi_address_enc_mask_offset = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfFeatureControlValueOffset") == 0) {
-        c->efi_feature_control_offset = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPlatformInfoHobOffset") == 0) {
-        c->efi_platform_info_offset = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfQemuFwCfgSupported") == 0) {
-        c->efi_qemu_fw_cfg_supported = (uint8_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfQemuFwCfgDmaSupported") == 0) {
-        c->efi_qemu_fw_cfg_dma_supported = (uint8_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfAddressEncMask") == 0) {
-        c->efi_address_enc_mask = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfFeatureControlValue") == 0) {
-        c->efi_feature_control = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfHostBridgeDevId") == 0) {
-        c->efi_platform_info.HostBridgeDevId = (uint16_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdConfidentialComputingGuestAttr") == 0) {
-        c->efi_platform_info.PcdConfidentialComputingGuestAttr = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfSevEsIsEnabled") == 0) {
-        c->efi_platform_info.SevEsIsEnabled = (uint8_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfBootMode") == 0) {
-        c->efi_platform_info.BootMode = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfS3Supported") == 0) {
-        c->efi_platform_info.S3Supported = (bool)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfSmmSmramRequire") == 0) {
-        c->efi_platform_info.SmmSmramRequire = (bool)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfQ35SmramAtDefaultSmbase") == 0) {
-        c->efi_platform_info.Q35SmramAtDefaultSmbase = (bool)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfQ35TsegMbytes") == 0) {
-        c->efi_platform_info.Q35TsegMbytes = (uint16_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfFirstNonAddress") == 0) {
-        c->efi_platform_info.FirstNonAddress = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPhysMemAddressWidth") == 0) {
-        c->efi_platform_info.PhysMemAddressWidth = (uint8_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfUc32Base") == 0) {
-        c->efi_platform_info.Uc32Base = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfUc32Size") == 0) {
-        c->efi_platform_info.Uc32Size = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdSetNxForStack") == 0) {
-        c->efi_platform_info.PcdSetNxForStack = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdTdxSharedBitMask") == 0) {
-        c->efi_platform_info.PcdTdxSharedBitMask = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciMmio64Base") == 0) {
-        c->efi_platform_info.PcdPciMmio64Base = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciMmio64Size") == 0) {
-        c->efi_platform_info.PcdPciMmio64Size = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciMmio32Base") == 0) {
-        c->efi_platform_info.PcdPciMmio32Base = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciMmio32Size") == 0) {
-        c->efi_platform_info.PcdPciMmio32Size = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciIoBase") == 0) {
-        c->efi_platform_info.PcdPciIoBase = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdPciIoSize") == 0) {
-        c->efi_platform_info.PcdPciIoSize = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdEmuVariableNvStoreReserved") == 0) {
-        c->efi_platform_info.PcdEmuVariableNvStoreReserved = strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdCpuBootLogicalProcessorNumber") == 0) {
-        c->efi_platform_info.PcdCpuBootLogicalProcessorNumber = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfPcdCpuMaxLogicalProcessorNumber") == 0) {
-        c->efi_platform_info.PcdCpuMaxLogicalProcessorNumber = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfDefaultMaxCpuNumber") == 0) {
-        c->efi_platform_info.DefaultMaxCpuNumber = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfS3AcpiReservedMemoryBase") == 0) {
-        c->efi_platform_info.S3AcpiReservedMemoryBase = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "OvmfS3AcpiReservedMemorySize") == 0) {
-        c->efi_platform_info.S3AcpiReservedMemorySize = (uint32_t)strtol(val, NULL, 16);
-    } else if (strcmp(var, "PeCoffTypeOfLoader") == 0) {
+    if (strcmp(var, "PeCoffTypeOfLoader") == 0) {
         c->kernel_setup_hdr.type_of_loader = (uint8_t)strtol(val, NULL, 16);
     } else if (strcmp(var, "PeCoffLoadFlags") == 0) {
         c->kernel_setup_hdr.loadflags = (uint8_t)strtol(val, NULL, 16);
@@ -151,47 +81,6 @@ set_val(config_t *c, const char *var, const char *val)
 static void
 print_config(config_t *c)
 {
-    DEBUG("efi_qemu_fw_cfg_supported_offset: %lx\n", c->efi_qemu_fw_cfg_supported_offset);
-    DEBUG("efi_qemu_fw_cfg_dma_supported_offset: %lx\n", c->efi_qemu_fw_cfg_dma_supported_offset);
-    DEBUG("efi_address_enc_mask_offset: %lx\n", c->efi_address_enc_mask_offset);
-    DEBUG("efi_feature_control_offset: %lx\n", c->efi_feature_control_offset);
-    DEBUG("efi_platform_info_offset: %lx\n", c->efi_platform_info_offset);
-
-    DEBUG("efi_qemu_fw_cfg_supported: %x\n", c->efi_qemu_fw_cfg_supported);
-    DEBUG("efi_qemu_fw_cfg_dma_supported: %x\n", c->efi_qemu_fw_cfg_dma_supported);
-    DEBUG("efi_address_enc_mask: %lx\n", c->efi_address_enc_mask);
-
-    DEBUG("HostBridgeDevId: %x\n", c->efi_platform_info.HostBridgeDevId);
-    DEBUG("PcdConfidentialComputingGuestAttr: %llx\n",
-          c->efi_platform_info.PcdConfidentialComputingGuestAttr);
-    DEBUG("SevEsIsEnabled: %x\n", c->efi_platform_info.SevEsIsEnabled);
-    DEBUG("BootMode: %x\n", c->efi_platform_info.BootMode);
-    DEBUG("S3Supported: %x\n", c->efi_platform_info.S3Supported);
-    DEBUG("SmmSmramRequire: %x\n", c->efi_platform_info.SmmSmramRequire);
-    DEBUG("Q35SmramAtDefaultSmbase: %x\n", c->efi_platform_info.Q35SmramAtDefaultSmbase);
-    DEBUG("Q35TsegMbytes: %x\n", c->efi_platform_info.Q35TsegMbytes);
-    DEBUG("FirstNonAddress: %llx\n", c->efi_platform_info.FirstNonAddress);
-    DEBUG("PhysMemAddressWidth: %x\n", c->efi_platform_info.PhysMemAddressWidth);
-    DEBUG("Uc32Base: %x\n", c->efi_platform_info.Uc32Base);
-    DEBUG("Uc32Size: %x\n", c->efi_platform_info.Uc32Size);
-    DEBUG("PcdSetNxForStack: %x\n", c->efi_platform_info.PcdSetNxForStack);
-    DEBUG("PcdTdxSharedBitMask: %llx\n", c->efi_platform_info.PcdTdxSharedBitMask);
-    DEBUG("PcdPciMmio64Base: %llx\n", c->efi_platform_info.PcdPciMmio64Base);
-    DEBUG("PcdPciMmio64Size: %llx\n", c->efi_platform_info.PcdPciMmio64Size);
-    DEBUG("PcdPciMmio32Base: %x\n", c->efi_platform_info.PcdPciMmio32Base);
-    DEBUG("PcdPciMmio32Size: %x\n", c->efi_platform_info.PcdPciMmio32Size);
-    DEBUG("PcdPciIoBase: %llx\n", c->efi_platform_info.PcdPciIoBase);
-    DEBUG("PcdPciIoSize: %llx\n", c->efi_platform_info.PcdPciIoSize);
-    DEBUG("PcdEmuVariableNvStoreReserved: %llx\n",
-          c->efi_platform_info.PcdEmuVariableNvStoreReserved);
-    DEBUG("PcdCpuBootLogicalProcessorNumber: %x\n",
-          c->efi_platform_info.PcdCpuBootLogicalProcessorNumber);
-    DEBUG("PcdCpuMaxLogicalProcessorNumber: %x\n",
-          c->efi_platform_info.PcdCpuMaxLogicalProcessorNumber);
-    DEBUG("DefaultMaxCpuNumber: %x\n", c->efi_platform_info.DefaultMaxCpuNumber);
-    DEBUG("S3AcpiReservedMemoryBase: %x\n", c->efi_platform_info.S3AcpiReservedMemoryBase);
-    DEBUG("S3AcpiReservedMemorySize: %x\n", c->efi_platform_info.S3AcpiReservedMemorySize);
-
     DEBUG("type_of_loader: %x\n", c->kernel_setup_hdr.type_of_loader);
     DEBUG("loadflags: %x\n", c->kernel_setup_hdr.loadflags);
     DEBUG("setup_move_size: %x\n", c->kernel_setup_hdr.setup_move_size);
@@ -250,55 +139,6 @@ config_load(config_t *config, const char *config_file)
     fclose(fp);
     if (line)
         free(line);
-
-    return 0;
-}
-
-int
-config_prepare_peifv(uint8_t *fvmain, config_t *config)
-{
-    // Find PEIFV (header)
-    size_t peifv_offset = 0x80;
-    uint8_t *peifv = ((uint8_t *)fvmain + peifv_offset);
-    size_t peifv_size = 896 * 1024;
-
-    if ((config->efi_qemu_fw_cfg_supported_offset + sizeof(uint64_t)) >
-        (peifv_offset + peifv_size)) {
-        printf("Invalid OvmfQemuFwCfgSupportedOffset configuration\n");
-        return -1;
-    }
-    memcpy(peifv + config->efi_qemu_fw_cfg_supported_offset, &config->efi_qemu_fw_cfg_supported,
-           sizeof(uint64_t));
-
-    if ((config->efi_qemu_fw_cfg_dma_supported_offset + sizeof(uint64_t)) >
-        (peifv_offset + peifv_size)) {
-        printf("Invalid OvmfQemuFwCfgDmaSupportedOffset configuration\n");
-        return -1;
-    }
-    memcpy(peifv + config->efi_qemu_fw_cfg_dma_supported_offset,
-           &config->efi_qemu_fw_cfg_dma_supported, sizeof(uint64_t));
-
-    if ((config->efi_address_enc_mask_offset + sizeof(uint64_t)) > (peifv_offset + peifv_size)) {
-        printf("Invalid OvmfAddressEncMaskOffset configuration\n");
-        return -1;
-    }
-    memcpy(peifv + config->efi_address_enc_mask_offset, &config->efi_address_enc_mask,
-           sizeof(uint64_t));
-
-    if ((config->efi_feature_control_offset + sizeof(uint64_t)) > (peifv_offset + peifv_size)) {
-        printf("Invalid OvmfFeatureControlValueOffset configuration\n");
-        return -1;
-    }
-    memcpy(peifv + config->efi_feature_control_offset, &config->efi_feature_control,
-           sizeof(uint64_t));
-
-    if ((config->efi_platform_info_offset + sizeof(EFI_HOB_PLATFORM_INFO)) >
-        (peifv_offset + peifv_size)) {
-        printf("Invalid OvmfPlatformInfoHobOffset configuration\n");
-        return -1;
-    }
-    memcpy(peifv + config->efi_platform_info_offset, &config->efi_platform_info,
-           sizeof(EFI_HOB_PLATFORM_INFO));
 
     return 0;
 }

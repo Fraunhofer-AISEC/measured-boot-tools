@@ -53,45 +53,22 @@ calculate-srtm-pcrs [options...]
 ```sh
 ./calculate-srtm-pcrs \
 	--kernel kernel-linux-amd64-virtio-systemd-debug.bzImage \
-	--ramdisk initrd-linux-amd64-virtio-systemd-debug.cpio.zst \
 	--ovmf-code OVMF.fd \
 	--format json \
 	--pcrs 1,3,4,5,6,7 \
 	--eventlog \
-	--config configs/ovmf-2022-05.cfg
+	--config configs/default.cfg
 ```
 
 ## Configuration
 
-The OVMF contains a few global variables, which are initialized and then measured into PCR0 as
-part of the PEIFV firmware volume measurement. These values, most importantly the EFI Platform
-Info HOB [1] must be set at the correct offset in order to calculate the correct measurement. The
-values can and their offset in the image can e.g. be found out through dumping the TPM measurement
-during the OVMF build in debug mode.
-
 The kernel image contains a setup header for exchanging values with the bootloader [2]. A part of
 these values is "modify" or "write", which means that the bootloader writes these values. As these
 values are written before the header is measured as part of the kernel image into PCR4, they must
-be set as well.
+be set configured.
 
 Therefore, for calculating PCR0 and PCR4, a configuration file path must be specified via the
-`-c|--config` command line argument. The configuration file must contain the offsets and the
-values (in hex) separated by `=`. Example configurations are provided in `configs/`.
+`-c|--config` command line argument. Example configurations are provided in `configs/`.
 
-For the configurations, edk2 was built with the following flags:
-
-```sh
-build \
--DTPM2_ENABLE=TRUE \
--DSECURE_BOOT_ENABLE=TRUE \
--DFD_SIZE_2MB \
--n "$(nproc)" \
--b RELEASE \
--a X64 \
--t GCC5 \
--p OvmfPkg/OvmfPkgX64.dsc
-```
-
-- [1] https://github.com/tianocore/edk2/blob/master/OvmfPkg/PlatformPei/Platform.c#L44
 - [2] https://www.kernel.org/doc/html/latest/x86/boot.html?highlight=boot
 
