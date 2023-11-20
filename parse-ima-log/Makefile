@@ -31,7 +31,7 @@ all: parse-ima-log
 
 .PHONY: parse-ima-log
 parse-ima-log:
-	gcc $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) -o parse-ima-log $(CSRS) $(LFLAGS)
+	$(CC) $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) -o parse-ima-log $(CSRS) $(LFLAGS)
 
 .PHONY: install
 install:
