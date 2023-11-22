@@ -70,6 +70,48 @@ memdup(const unsigned char *mem, size_t size)
     return p;
 }
 
+long
+get_file_size(const char *filename)
+{
+    struct stat st = { 0 };
+    stat(filename, &st);
+    return st.st_size;
+}
+
+uint8_t *
+read_file_new(const char *filename)
+{
+    if (access(filename, F_OK) != 0) {
+        printf("File %s does not exist\n", filename);
+        return NULL;
+    }
+
+    struct stat st;
+    stat(filename, &st);
+    uint64_t file_size = st.st_size;
+
+    DEBUG("File size: %ld\n", file_size);
+
+    uint8_t *buf = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
+    if (!buf) {
+        printf("Failed to allocate memory\n");
+        return NULL;
+    }
+    FILE *f = fopen(filename, "rb");
+    if (!f) {
+        printf("Failed to open %s\n", filename);
+        return NULL;
+    }
+    size_t data_read = fread(buf, 1, file_size, f);
+    fclose(f);
+    if (data_read != (size_t)file_size) {
+        printf("ERROR: Failed to read file. Only read: %ld of %ld\n", data_read, file_size);
+        return NULL;
+    }
+
+    return buf;
+}
+
 int
 read_file(uint8_t **buf, uint64_t *size, const char *filename)
 {

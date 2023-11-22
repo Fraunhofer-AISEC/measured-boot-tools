@@ -55,6 +55,12 @@ hash_file(const EVP_MD *md, uint8_t *file_hash, const char *filename)
 }
 
 void
+sha256_extend(uint8_t *pcr_value, uint8_t *pcr_extend)
+{
+    hash_extend(EVP_sha256(), pcr_value, pcr_extend, SHA256_DIGEST_LENGTH);
+}
+
+void
 hash_extend(const EVP_MD *md, uint8_t *pcr_value, uint8_t *pcr_extend, size_t len)
 {
     EVP_MD_CTX *ctx;

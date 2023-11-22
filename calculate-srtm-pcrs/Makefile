@@ -26,6 +26,7 @@ CSRS := \
 	main.c \
 	config.c \
 	hash.c \
+	eventlog.c \
 	thirdparty/edk2/MeasureBootPeCoff.c \
 	thirdparty/edk2/SecMain.c \
 	thirdparty/edk2/Tcg2Dxe.c \

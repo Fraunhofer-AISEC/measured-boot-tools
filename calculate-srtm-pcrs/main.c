@@ -27,90 +27,22 @@
 #include "common.h"
 #include "hash.h"
 #include "config.h"
+#include "eventlog.h"
 
 #define MAX_PCRS 24
 
-typedef enum { FORMAT_JSON, FORMAT_TEXT } format_t;
-
 typedef struct {
-    format_t format;
-    char *log[MAX_PCRS];
-} eventlog_t;
+    uint8_t *acpi_tables;
+    size_t acpi_tables_size;
+    uint8_t *acpi_rsdp;
+    size_t acpi_rsdp_size;
+    uint8_t *table_loader;
+    size_t table_loader_size;
+    uint8_t *tpm_log;
+    size_t tpm_log_size;
+} pcr1_config_files_t;
 
 volatile bool debug_output = false;
-
-static char *
-encode_hex(const uint8_t *bin, int length)
-{
-    size_t len = length * 2 + 1;
-    char *hex = calloc(len, 1);
-    for (int i = 0; i < length; ++i) {
-        // snprintf writes a '0' byte
-        snprintf(hex + i * 2, 3, "%.2x", bin[i]);
-    }
-    return hex;
-}
-
-static int
-evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr, uint8_t *hash,
-             const char *desc)
-{
-    int ret;
-    char *hashstr = encode_hex(hash, SHA256_DIGEST_LENGTH);
-    if (!hashstr) {
-        printf("Failed to allocate memory\n");
-        return -1;
-    }
-
-    char s[1024] = { 0 };
-    if (evlog->format == FORMAT_JSON) {
-        ret = snprintf(s, sizeof(s),
-                       "{"
-                       "\n\t\"type\":\"TPM Reference Value\","
-                       "\n\t\"name\":\"%s\","
-                       "\n\t\"pcr\":%d,"
-                       "\n\t\"sha256\":\"%s\","
-                       "\n\t\"description\":\"%s\""
-                       "\n},\n",
-                       name, pcr, hashstr, desc);
-    } else if (evlog->format == FORMAT_TEXT) {
-        ret = snprintf(s, sizeof(s),
-                       "name: %s"
-                       "\n\tpcr: %d"
-                       "\n\tsha256: %s"
-                       "\n\tdescription: %s\n",
-                       name, pcr, hashstr, desc);
-    }
-    if (!ret) {
-        printf("Failed to print eventlog\n");
-        ret = -1;
-        goto out;
-    }
-
-    if (!evlog->log[pcr_index]) {
-        size_t size = strlen(s) + 1;
-        evlog->log[pcr_index] = (char *)malloc(size);
-        if (!evlog->log[pcr_index]) {
-            printf("Failed to allocate memory\n");
-            ret = -1;
-            goto out;
-        }
-        strncpy(evlog->log[pcr_index], s, size);
-    } else {
-        size_t size = strlen(evlog->log[pcr_index]) + strlen(s) + 1;
-        evlog->log[pcr_index] = (char *)realloc(evlog->log[pcr_index], size);
-        if (!evlog->log[pcr_index]) {
-            printf("Failed to allocate memory\n");
-            ret = -1;
-            goto out;
-        }
-        strncat(evlog->log[pcr_index], s, strlen(s) + 1);
-    }
-
-out:
-    free(hashstr);
-    return ret;
-}
 
 /**
  * Calculates PCR 0
@@ -239,13 +171,33 @@ out:
  * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr1(uint8_t *pcr, eventlog_t *evlog)
+calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
 {
     int ret = -1;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // EV_EFI_VARIABLE_BOOT
+    // EV_PLATFORM_CONFIG_FLAGS: etc/table-loader
+    uint8_t hash_table_loader[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_table_loader, "etc/table-loader");
+
+    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/rsdp
+    uint8_t hash_acpi_rsdp[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_acpi_rsdp, "etc/acpi/rsdp");
+
+    // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
+    uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_tpm_log, "etc/tpm/log");
+
+    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
+    uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_acpi_tables, "etc/acpi/tables");
+
+    // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
     uint8_t efi_variable_boot[2] = { 0 };
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
@@ -253,7 +205,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog)
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot,
                  "Hash EFI Variable Boot: Hash(0000)");
 
-    // EV_EFI_VARIABLE_BOOT
+    // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
     long len = 0;
     uint8_t *efi_variable_boot2 = OPENSSL_hexstr2buf(
         "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400",
@@ -278,6 +230,11 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     evlog_add(evlog, 1, "EV_SEPARATOR", 1, hash_ev_separator, "HASH(00000000)");
+
+    hash_extend(EVP_sha256(), pcr, hash_table_loader, SHA256_DIGEST_LENGTH);
+    hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
+    hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
+    hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
 
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot2, SHA256_DIGEST_LENGTH);
@@ -551,53 +508,7 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
 
     // TODO: Support secure boot
 
-    // GUID 61dfe48b-ca93-d211-aa0d-00e098032b8c
-    EFI_GUID var_guid1 = { __builtin_bswap32(0x61dfe48b),
-                           __builtin_bswap16(0xca93),
-                           __builtin_bswap16(0xd211),
-                           { 0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c } };
-    // GUID cbb219d7-3a3d-9645-a3bc-dad00e67656f
-    EFI_GUID var_guid2 = { __builtin_bswap32(0xcbb219d7),
-                           __builtin_bswap16(0x3a3d),
-                           __builtin_bswap16(0x9645),
-                           { 0xa3, 0xbc, 0xda, 0xd0, 0x0e, 0x67, 0x65, 0x6f } };
-
-    // EV_EFI_VARIABLE_DRIVER_CONFIG 'SecureBoot'
-    uint8_t hash_secure_boot[SHA256_DIGEST_LENGTH];
-    CHAR16 *var_name_secure_boot = u"SecureBoot";
-    uint8_t var_data[1] = { 0 };
-    uint64_t var_data_len = 1;
-    MeasureVariable(hash_secure_boot, var_name_secure_boot, &var_guid1, var_data, var_data_len);
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_secure_boot,
-                 "Variable 'SecureBoot'");
-
-    // EV_EFI_VARIABLE_DRIVER_CONFIG 'PK'
-    uint8_t hash_pk[SHA256_DIGEST_LENGTH];
-    CHAR16 *var_name_pk = u"PK";
-    MeasureVariable(hash_pk, var_name_pk, &var_guid1, NULL, 0);
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_pk,
-                 "Variable 'PK'");
-
-    // EV_EFI_VARIABLE_DRIVER_CONFIG 'KEK'
-    uint8_t hash_kek[SHA256_DIGEST_LENGTH];
-    CHAR16 *var_name_kek = u"KEK";
-    MeasureVariable(hash_kek, var_name_kek, &var_guid1, NULL, 0);
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_kek,
-                 "Variable 'KEK'");
-
-    // EV_EFI_VARIABLE_DRIVER_CONFIG 'DB'
-    uint8_t hash_db[SHA256_DIGEST_LENGTH];
-    CHAR16 *var_name_db = u"db";
-    MeasureVariable(hash_db, var_name_db, &var_guid2, NULL, 0);
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_db,
-                 "Variable 'DB'");
-
-    // EV_EFI_VARIABLE_DRIVER_CONFIG 'DBX'
-    uint8_t hash_dbx[SHA256_DIGEST_LENGTH];
-    CHAR16 *var_name_dbx = u"dbx";
-    MeasureVariable(hash_dbx, var_name_dbx, &var_guid2, NULL, 0);
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash_dbx,
-                 "Variable 'DBX'");
+    MeasureAllSecureVariables(pcr, evlog);
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -610,11 +521,6 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
     OPENSSL_free(ev_separator);
     evlog_add(evlog, 7, "EV_SEPARATOR", 7, hash_ev_separator, "HASH(00000000)");
 
-    hash_extend(EVP_sha256(), pcr, hash_secure_boot, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_pk, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_kek, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_db, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_dbx, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
     return 0;
@@ -695,6 +601,10 @@ print_usage(const char *progname)
     printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple -d possible)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-c,  --config\t\t\tPath to configuration file\n");
+    printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
+    printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
+    printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
+    printf("\t-g,  --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
     printf("\n");
 }
 
@@ -729,6 +639,7 @@ main(int argc, char *argv[])
         .format = FORMAT_TEXT,
         .log = { 0 }
     };
+    pcr1_config_files_t pcr1_cfg = { 0 };
 
     argv++;
     argc--;
@@ -796,10 +707,30 @@ main(int argc, char *argv[])
             }
             argv += 2;
             argc -= 2;
-        } else if ((!strcmp(argv[0], "-v") || !strcmp(argv[0], "--verbose"))) {
+        } else if (!strcmp(argv[0], "--verbose")) {
             debug_output = true;
             argv++;
             argc--;
+        } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
+            pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
+            pcr1_cfg.acpi_rsdp = read_file_new(argv[1]);
+            argv += 2;
+            argc -= 2;
+        } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
+            pcr1_cfg.acpi_tables_size = get_file_size(argv[1]);
+            pcr1_cfg.acpi_tables = read_file_new(argv[1]);
+            argv += 2;
+            argc -= 2;
+        } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
+            pcr1_cfg.table_loader_size = get_file_size(argv[1]);
+            pcr1_cfg.table_loader = read_file_new(argv[1]);
+            argv += 2;
+            argc -= 2;
+        } else if ((!strcmp(argv[0], "-g") || !strcmp(argv[0], "--tpmlog")) && argc >= 2) {
+            pcr1_cfg.tpm_log_size = get_file_size(argv[1]);
+            pcr1_cfg.tpm_log = read_file_new(argv[1]);
+            argv += 2;
+            argc -= 2;
         } else {
             printf("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
@@ -813,6 +744,14 @@ main(int argc, char *argv[])
         goto out;
     }
 
+    if ((!pcr1_cfg.acpi_rsdp_size || !pcr1_cfg.acpi_tables_size ||
+            !pcr1_cfg.table_loader_size || !pcr1_cfg.tpm_log_size) &&
+            contains(pcr_nums, len_pcr_nums, 1)) {
+        printf("PCR1 Config files must be specified to calculate PCR1\n");
+        print_usage(progname);
+        goto out;
+    }
+
     if (!kernel && contains(pcr_nums, len_pcr_nums, 4)) {
         printf("Kernel must be specified to calculate PCR4\n");
         print_usage(progname);
@@ -821,9 +760,8 @@ main(int argc, char *argv[])
     if (!ramdisk) {
         DEBUG("Calculating PCR4 without initrd\n");
     }
-    if (!ovmf && (contains(pcr_nums, len_pcr_nums, 0) || contains(pcr_nums, len_pcr_nums, 1) ||
-                  contains(pcr_nums, len_pcr_nums, 2))) {
-        printf("OVMF must specified for calculating PCRs 0 and 1\n");
+    if (!ovmf && contains(pcr_nums, len_pcr_nums, 0)) {
+        printf("OVMF must specified for calculating PCR0\n");
         print_usage(progname);
         goto out;
     }
@@ -863,7 +801,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
-        if (calculate_pcr1(pcr[1], &evlog)) {
+        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
         }
@@ -977,6 +915,14 @@ out:
     }
     if (uefi_drivers)
         free(uefi_drivers);
+    if (pcr1_cfg.acpi_rsdp)
+        free(pcr1_cfg.acpi_rsdp);
+    if (pcr1_cfg.acpi_tables)
+        free(pcr1_cfg.acpi_tables);
+    if (pcr1_cfg.table_loader)
+        free(pcr1_cfg.table_loader);
+    if (pcr1_cfg.tpm_log)
+        free(pcr1_cfg.tpm_log);
 
     return ret;
 }

@@ -33,5 +33,11 @@ print_data_no_lf(const uint8_t *buf, size_t len, const char *info);
 unsigned char *
 memdup(const unsigned char *mem, size_t size);
 
+long
+get_file_size(const char *filename);
+
+uint8_t *
+read_file_new(const char *filename);
+
 int
 read_file(uint8_t **buf, uint64_t *size, const char *filename);
