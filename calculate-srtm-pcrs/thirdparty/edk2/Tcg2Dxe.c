@@ -133,12 +133,18 @@ int MeasureVariable(
        );
   }
 
+  char VarNameNarrow[VarNameLength+1];
+  memset(VarNameNarrow, 0x0, sizeof(VarNameNarrow));
+  for (UINTN i = 0; i < VarNameLength; i++) {
+    VarNameNarrow[i] = VarName[i] & 0xFF;
+  }
+
   uint8_t hash[SHA256_DIGEST_LENGTH];
 	sha256(hash, (uint8_t *)VarLog, event_size);
 
   // TODO replace hardcoded event type
   if (EventType == EV_EFI_VARIABLE_DRIVER_CONFIG) {
-    evlog_add_char16(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash, VarName);
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash, VarNameNarrow);
   } else {
     printf("Unknown event type 0x%x\n", EventType);
   }
