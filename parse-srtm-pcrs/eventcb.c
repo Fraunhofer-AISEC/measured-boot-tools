@@ -222,8 +222,6 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
         ERROR("Active PCR %d invalid\n", active_pcr);
         return false;
     }
-    hash_extend(EVP_sha256(), cb_data->calc_pcrs[active_pcr], (uint8_t *)digest->Digest,
-                SHA256_DIGEST_LENGTH);
 
     return true;
 }

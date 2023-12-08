@@ -6,16 +6,16 @@
 
 #include <tss2/tss2_tpm2_types.h>
 
-#include "common.h"
 #include "efi_event.h"
 #include "tpm2_alg_util.h"
 #include "tpm2_eventlog.h"
+#include "tpm2_openssl.h"
 
 bool digest2_accumulator_callback(TCG_DIGEST2 const *digest, size_t size,
-                                  void *data){
+                                  void *data) {
 
     if (digest == NULL || data == NULL) {
-        LOG_ERR("neither parameter may be NULL");
+        printf("neither parameter may be NULL");
         return false;
     }
     size_t *accumulator = (size_t*)data;
@@ -31,17 +31,18 @@ bool digest2_accumulator_callback(TCG_DIGEST2 const *digest, size_t size,
  * hold the digest. The size of the digest is passed to the callback in the
  * 'size' parameter.
  */
-bool foreach_digest2(tpm2_eventlog_context *ctx, unsigned pcr_index, TCG_DIGEST2 const *digest, size_t count, size_t size) {
+bool foreach_digest2(tpm2_eventlog_context *ctx, UINT32 eventType, unsigned pcr_index,
+                     TCG_DIGEST2 const *digest, size_t count, size_t size, uint8_t locality) {
 
     if (digest == NULL) {
-        LOG_ERR("digest cannot be NULL");
+        printf("digest cannot be NULL");
         return false;
     }
 
     /* Because pcr_index is used for array indexing and bit-shift operations it
        is 1 less than the max value */
     if (pcr_index > (TPM2_MAX_PCRS - 1)) {
-        LOG_ERR("PCR Index %d is out of bounds for max available PCRS %d",
+        printf("PCR Index %d is out of bounds for max available PCRS %d",
         pcr_index, TPM2_MAX_PCRS);
         return false;
     }
@@ -50,21 +51,54 @@ bool foreach_digest2(tpm2_eventlog_context *ctx, unsigned pcr_index, TCG_DIGEST2
     size_t i;
     for (i = 0; i < count; ++i) {
         if (size < sizeof(*digest)) {
-            LOG_ERR("insufficient size for digest header");
+            printf("insufficient size for digest header");
             return false;
         }
 
         const TPMI_ALG_HASH alg = digest->AlgorithmId;
         const size_t alg_size = tpm2_alg_util_get_hash_size(alg);
         if (size < sizeof(*digest) + alg_size) {
-            LOG_ERR("insufficient size for digest buffer");
+            printf("insufficient size for digest buffer");
+            return false;
+        }
+
+        uint8_t *pcr = NULL;
+        if (alg == TPM2_ALG_SHA1) {
+            pcr = ctx->sha1_pcrs[pcr_index];
+            ctx->sha1_used |= (1 << pcr_index);
+        } else if (alg == TPM2_ALG_SHA256) {
+            pcr = ctx->sha256_pcrs[pcr_index];
+            ctx->sha256_used |= (1 << pcr_index);
+        } else if (alg == TPM2_ALG_SHA384) {
+            pcr = ctx->sha384_pcrs[pcr_index];
+            ctx->sha384_used |= (1 << pcr_index);
+        } else if (alg == TPM2_ALG_SHA512) {
+            pcr = ctx->sha512_pcrs[pcr_index];
+            ctx->sha512_used |= (1 << pcr_index);
+        } else if (alg == TPM2_ALG_SM3_256) {
+            pcr = ctx->sm3_256_pcrs[pcr_index];
+            ctx->sm3_256_used |= (1 << pcr_index);
+        } else {
+            printf("PCR%d algorithm %d unsupported", pcr_index, alg);
+        }
+
+        if (eventType == EV_EFI_HCRTM_EVENT && pcr && pcr_index == 0) {
+            /* Trusted Platform Module Library Part 1 section 34.3 */
+            pcr[alg_size - 1] = 0x04;
+        } else if (eventType == EV_NO_ACTION && pcr && pcr_index == 0 && locality > 0 ) {
+            pcr[alg_size - 1] = locality;
+        }
+
+        if (eventType != EV_NO_ACTION && pcr &&
+            !tpm2_openssl_pcr_extend(alg, pcr, digest->Digest, alg_size)) {
+            printf("PCR%d extend failed", pcr_index);
             return false;
         }
 
         if (ctx->digest2_cb != NULL) {
             ret = ctx->digest2_cb(digest, alg_size, ctx->data);
             if (!ret) {
-                LOG_ERR("callback failed for digest at %p with size %zu", digest, alg_size);
+                printf("callback failed for digest at %p with size %zu", digest, alg_size);
                 break;
             }
         }
@@ -90,14 +124,14 @@ bool parse_event2body(TCG_EVENT2 const *event, UINT32 type) {
         {
             UEFI_VARIABLE_DATA *data = (UEFI_VARIABLE_DATA*)event->Event;
             if (event->EventSize < sizeof(*data)) {
-                LOG_ERR("size is insufficient for UEFI variable data");
+                printf("size is insufficient for UEFI variable data");
                 return false;
             }
 
             if (event->EventSize < sizeof(*data) + data->UnicodeNameLength *
                 sizeof(UTF16_CHAR) + data->VariableDataLength)
             {
-                LOG_ERR("size is insufficient for UEFI variable data");
+                printf("size is insufficient for UEFI variable data");
                 return false;
             }
         }
@@ -112,9 +146,8 @@ bool parse_event2body(TCG_EVENT2 const *event, UINT32 type) {
         {
             UEFI_PLATFORM_FIRMWARE_BLOB *data =
                 (UEFI_PLATFORM_FIRMWARE_BLOB*)event->Event;
-            UNUSED(data);
             if (event->EventSize < sizeof(*data)) {
-                LOG_ERR("size is insufficient for UEFI FW blob data");
+                printf("size is insufficient for UEFI FW blob data");
                 return false;
             }
         }
@@ -124,12 +157,24 @@ bool parse_event2body(TCG_EVENT2 const *event, UINT32 type) {
     case EV_EFI_RUNTIME_SERVICES_DRIVER:
         {
             UEFI_IMAGE_LOAD_EVENT *data = (UEFI_IMAGE_LOAD_EVENT*)event->Event;
-            UNUSED(data);
             if (event->EventSize < sizeof(*data)) {
-                LOG_ERR("size is insufficient for UEFI image load event");
+                printf("size is insufficient for UEFI image load event");
                 return false;
             }
             /* what about the device path? */
+        }
+        break;
+    /* TCG PC Client Platform Firmware Profile Specification Level 00 Version 1.05 Revision 23 section 10.4.1 */
+    case EV_EFI_HCRTM_EVENT:
+        {
+            const char hcrtm_data[] = "HCRTM";
+            size_t len = strlen(hcrtm_data);
+            BYTE *data = (BYTE *)event->Event;
+            if (event->EventSize != len ||
+                    strncmp((const char *)data, hcrtm_data, len)) {
+                printf("HCRTM Event Data MUST be the string: \"%s\"", hcrtm_data);
+                return false;
+            }
         }
         break;
     }
@@ -146,7 +191,7 @@ bool parse_event2(TCG_EVENT_HEADER2 const *eventhdr, size_t buf_size,
     bool ret;
 
     if (buf_size < sizeof(*eventhdr)) {
-        LOG_ERR("corrupted log, insufficient size for event header: %zu", buf_size);
+        printf("corrupted log, insufficient size for event header: %zu", buf_size);
         return false;
     }
     *event_size = sizeof(*eventhdr);
@@ -155,9 +200,10 @@ bool parse_event2(TCG_EVENT_HEADER2 const *eventhdr, size_t buf_size,
         .data = digests_size,
         .digest2_cb = digest2_accumulator_callback,
     };
-    ret = foreach_digest2(&ctx, eventhdr->PCRIndex,
+    ret = foreach_digest2(&ctx, eventhdr->EventType,
+                          eventhdr->PCRIndex, 
                           eventhdr->Digests, eventhdr->DigestCount,
-                          buf_size - sizeof(*eventhdr));
+                          buf_size - sizeof(*eventhdr), 0);
     if (ret != true) {
         return false;
     }
@@ -165,13 +211,13 @@ bool parse_event2(TCG_EVENT_HEADER2 const *eventhdr, size_t buf_size,
 
     TCG_EVENT2 *event = (TCG_EVENT2*)((uintptr_t)eventhdr + *event_size);
     if (buf_size < *event_size + sizeof(*event)) {
-        LOG_ERR("corrupted log: size insufficient for EventSize");
+        printf("corrupted log: size insufficient for EventSize");
         return false;
     }
     *event_size += sizeof(*event);
 
     if (buf_size < *event_size + event->EventSize) {
-        LOG_ERR("size insufficient for event data");
+        printf("size insufficient for event data");
         return false;
     }
     *event_size += event->EventSize;
@@ -182,19 +228,25 @@ bool parse_event2(TCG_EVENT_HEADER2 const *eventhdr, size_t buf_size,
 bool parse_sha1_log_event(tpm2_eventlog_context *ctx, TCG_EVENT const *event, size_t size,
                       size_t *event_size) {
 
-    (void)ctx;
+    uint8_t *pcr = NULL;
 
     /* enough size for the 1.2 event structure */
     if (size < sizeof(*event)) {
-        LOG_ERR("insufficient size for SpecID event header");
+        printf("insufficient size for SpecID event header");
         return false;
     }
     *event_size = sizeof(*event);
 
+    pcr = ctx->sha1_pcrs[ event->pcrIndex];
+    if (event->eventType != EV_NO_ACTION && pcr) {
+        tpm2_openssl_pcr_extend(TPM2_ALG_SHA1, pcr, &event->digest[0], 20);
+        ctx->sha1_used |= (1 << event->pcrIndex);
+    }
+
     /* buffer size must be sufficient to hold event and event data */
     if (size < sizeof(*event) + (sizeof(event->event[0]) *
                                  event->eventDataSize)) {
-        LOG_ERR("insufficient size for SpecID event data");
+        printf("insufficient size for SpecID event data");
         return false;
     }
     *event_size += event->eventDataSize;
@@ -204,7 +256,7 @@ bool parse_sha1_log_event(tpm2_eventlog_context *ctx, TCG_EVENT const *event, si
 bool foreach_sha1_log_event(tpm2_eventlog_context *ctx, TCG_EVENT const *eventhdr_start, size_t size) {
 
     if (eventhdr_start == NULL) {
-        LOG_ERR("invalid parameter");
+        printf("invalid parameter");
         return false;
     }
 
@@ -254,11 +306,140 @@ bool foreach_sha1_log_event(tpm2_eventlog_context *ctx, TCG_EVENT const *eventhd
     return true;
 }
 
+/*
+ * For event types where digest can be verified from their event payload,
+ * perform verification to ensure event payload was not tempered
+ */
+bool verify_digests(size_t eventnum, TCG_EVENT_HEADER2 const *eventhdr, TCG_EVENT2 *event) {
+
+size_t i;
+
+    TCG_DIGEST2 const *digest = eventhdr->Digests;
+    UINT32 digest_count = eventhdr->DigestCount;
+    UINT32 event_type = eventhdr->EventType;
+    switch (event_type) {
+    /* Digests of these event types are calculated directly from event->Event, thus can be verified  */
+    case EV_S_CRTM_VERSION:
+    case EV_SEPARATOR:
+    case EV_EFI_VARIABLE_DRIVER_CONFIG:
+    case EV_EFI_GPT_EVENT:
+        for (i = 0; i < digest_count; i++) {
+            TPMI_ALG_HASH alg = digest->AlgorithmId;
+            TPM2B_DIGEST calc_digest;
+
+            bool result = tpm2_openssl_hash_compute_data(alg, event->Event,
+            event->EventSize, &calc_digest);
+            if (!result) {
+                printf("Event %zu: Cannot calculate hash value from data", eventnum - 1);
+                return false;
+            }
+
+            size_t alg_size = tpm2_alg_util_get_hash_size(alg);
+            if (memcmp(calc_digest.buffer, digest->Digest, alg_size) != 0) {
+                printf("Event %zu's digest does not match its payload", eventnum - 1);
+                return false;
+            }
+
+            digest = (TCG_DIGEST2*)((uintptr_t)digest->Digest + alg_size);
+        }
+        break;
+
+    /* Shim, grub & sd-boot use this event type for various tasks */
+    case EV_IPL:
+        switch (eventhdr->PCRIndex) {
+        /* PCR9: used to measure loaded kernel and initramfs images which cannot
+           be verified from eventlog alone */
+        case 9:
+            return true;
+
+        /* PCR14: used to measure MokList, MokListX, and MokSBState which cannot
+           be verified from eventlog alone */
+        case 14:
+            return true;
+
+        /* PCR8: used to measure grub and kernel command line */
+	case 8:
+            /* Digest is applied on the string between "^[a-zA-Z_]+:? " and EOL,
+             * including or excluding the trailing NULL character */
+            for (i = 0; i < digest_count; i++) {
+                size_t j;
+
+                for (j = 0; j < event->EventSize; j++) {
+                    if (event->Event[j] == ' ')
+                        break;
+                }
+
+                if (j + 1 >= event->EventSize || event->Event[event->EventSize - 1] != '\0') {
+                    printf("Event %zu's event data is in unexpected format", eventnum - 1);
+                    return false;
+                }
+
+                TPM2B_DIGEST calc_digest;
+                TPMI_ALG_HASH alg = digest->AlgorithmId;
+                /* First try to calculate the hash excluding the trailing \0 */
+                bool result = tpm2_openssl_hash_compute_data(alg,
+                event->Event + (j + 1), event->EventSize - (j + 2), &calc_digest);
+                if (!result) {
+                    printf("Event %zu: Cannot calculate hash value from data", eventnum - 1);
+                    return false;
+                }
+
+                size_t alg_size = tpm2_alg_util_get_hash_size(alg);
+                if (memcmp(calc_digest.buffer, digest->Digest, alg_size) != 0) {
+                    /* Next try to calculate the hash including the trailing \0 */
+                    bool result = tpm2_openssl_hash_compute_data(alg,
+                    event->Event + (j + 1), event->EventSize - (j + 1), &calc_digest);
+                    if (!result) {
+                        printf("Event %zu: Cannot calculate hash value from data", eventnum - 1);
+                        return false;
+                    }
+
+                    if (memcmp(calc_digest.buffer, digest->Digest, alg_size) != 0) {
+                        printf("Event %zu's digest does not match its payload", eventnum - 1);
+                        return false;
+                    }
+                }
+                digest = (TCG_DIGEST2*)((uintptr_t)digest->Digest + alg_size);
+            }
+            break;
+
+        /* PCR12: used by measure kernel command line (sd-boot >= 251) */
+        case 12:
+            for (i = 0; i < digest_count; i++) {
+                TPM2B_DIGEST calc_digest;
+                TPMI_ALG_HASH alg = digest->AlgorithmId;
+                bool result = tpm2_openssl_hash_compute_data(alg,
+                event->Event, event->EventSize, &calc_digest);
+
+                if (!result) {
+                    printf("Event %zu: Cannot calculate hash value from data", eventnum - 1);
+                    return false;
+                }
+
+                size_t alg_size = tpm2_alg_util_get_hash_size(alg);
+                if (memcmp(calc_digest.buffer, digest->Digest, alg_size) != 0) {
+                    printf("Event %zu's digest does not match its payload", eventnum - 1);
+                    return false;
+                }
+                digest = (TCG_DIGEST2*)((uintptr_t)digest->Digest + alg_size);
+            }
+            break;
+
+        default:
+            printf("Event %zu is unexectedly not extending either PCR 8, 9, 12 or 14", eventnum - 1);
+            return false;
+        }
+
+        break;
+    }
+
+    return true;
+}
 
 bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhdr_start, size_t size) {
 
     if (eventhdr_start == NULL) {
-        LOG_ERR("invalid parameter");
+        printf("invalid parameter");
         return false;
     }
     if (size == 0) {
@@ -268,6 +449,7 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
     TCG_EVENT_HEADER2 const *eventhdr;
     size_t event_size;
     bool ret;
+    bool found_hcrtm = false;
 
     for (eventhdr = eventhdr_start, event_size = 0;
          size > 0;
@@ -275,6 +457,7 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
          size -= event_size) {
 
         size_t digests_size = 0;
+        uint8_t locality = 0;
 
         ret = parse_event2(eventhdr, size, &event_size, &digests_size);
         if (!ret) {
@@ -282,6 +465,26 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
         }
 
         TCG_EVENT2 *event = (TCG_EVENT2*)((uintptr_t)eventhdr->Digests + digests_size);
+
+        if (eventhdr->EventType == EV_EFI_HCRTM_EVENT && eventhdr->PCRIndex == 0) {
+            found_hcrtm = true;
+        }
+
+        /* Handle StartupLocality in replay for PCR0 */
+        if (!found_hcrtm && eventhdr->EventType == EV_NO_ACTION && eventhdr->PCRIndex == 0) {
+            if (event_size < sizeof(EV_NO_ACTION_STRUCT)) {
+                printf("EventSize is too small\n");
+                return false;
+            }
+
+            EV_NO_ACTION_STRUCT *locality_event = (EV_NO_ACTION_STRUCT*)event->Event;
+
+            if (memcmp(locality_event->Signature, STARTUP_LOCALITY_SIGNATURE,
+                       sizeof(STARTUP_LOCALITY_SIGNATURE)) == 0) {
+                locality = locality_event->Cases.StartupLocality;
+            }
+        }
+
 
         /* event header callback */
         if (ctx->event2hdr_cb != NULL) {
@@ -292,7 +495,8 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
         }
 
         /* digest callback foreach digest */
-        ret = foreach_digest2(ctx, eventhdr->PCRIndex, eventhdr->Digests, eventhdr->DigestCount, digests_size);
+        ret = foreach_digest2(ctx, eventhdr->EventType, eventhdr->PCRIndex,
+                              eventhdr->Digests, eventhdr->DigestCount, digests_size, locality);
         if (ret != true) {
             return false;
         }
@@ -319,45 +523,45 @@ bool specid_event(TCG_EVENT const *event, size_t size,
 
     /* enough size for the 1.2 event structure */
     if (size < sizeof(*event)) {
-        LOG_ERR("insufficient size for SpecID event header");
+        printf("insufficient size for SpecID event header");
         return false;
     }
 
     if (event->eventType != EV_NO_ACTION) {
-        LOG_ERR("SpecID eventType must be EV_NO_ACTION");
+        printf("SpecID eventType must be EV_NO_ACTION");
         return false;
     }
 
     if (event->pcrIndex != 0) {
-        LOG_ERR("bad pcrIndex for EV_NO_ACTION event");
+        printf("bad pcrIndex for EV_NO_ACTION event");
         return false;
     }
 
     size_t i;
     for (i = 0; i < sizeof(event->digest); ++i) {
         if (event->digest[i] != 0) {
-            LOG_ERR("SpecID digest data malformed");
+            printf("SpecID digest data malformed");
             return false;
         }
     }
 
     /* eventDataSize must be sufficient to hold the specid event */
     if (event->eventDataSize < sizeof(TCG_SPECID_EVENT)) {
-        LOG_ERR("invalid eventDataSize in specid event");
+        printf("invalid eventDataSize in specid event");
         return false;
     }
 
     /* buffer size must be sufficient to hold event and event data */
     if (size < sizeof(*event) + (sizeof(event->event[0]) *
                                  event->eventDataSize)) {
-        LOG_ERR("insufficient size for SpecID event data");
+        printf("insufficient size for SpecID event data");
         return false;
     }
 
     /* specid event must have 1 or more algorithms */
     TCG_SPECID_EVENT *event_specid = (TCG_SPECID_EVENT*)event->event;
     if (event_specid->numberOfAlgorithms == 0) {
-        LOG_ERR("numberOfAlgorithms is invalid, may not be 0");
+        printf("numberOfAlgorithms is invalid, may not be 0");
         return false;
     }
 
@@ -365,7 +569,7 @@ bool specid_event(TCG_EVENT const *event, size_t size,
     if (size < sizeof(*event) + sizeof(*event_specid) +
                sizeof(event_specid->digestSizes[0]) *
                event_specid->numberOfAlgorithms) {
-        LOG_ERR("insufficient size for SpecID algorithms");
+        printf("insufficient size for SpecID algorithms");
         return false;
     }
 
@@ -373,7 +577,7 @@ bool specid_event(TCG_EVENT const *event, size_t size,
     if (size < sizeof(*event) + sizeof(*event_specid) +
                sizeof(event_specid->digestSizes[0]) *
                event_specid->numberOfAlgorithms + sizeof(TCG_VENDOR_INFO)) {
-        LOG_ERR("insufficient size for VendorStuff");
+        printf("insufficient size for VendorStuff");
         return false;
     }
 
@@ -385,7 +589,7 @@ bool specid_event(TCG_EVENT const *event, size_t size,
                sizeof(event_specid->digestSizes[0]) *
                event_specid->numberOfAlgorithms + sizeof(*vendor) +
                vendor->vendorInfoSize) {
-        LOG_ERR("insufficient size for VendorStuff data");
+        printf("insufficient size for VendorStuff data");
         return false;
     }
     *next = (TCG_EVENT_HEADER2*)((uintptr_t)vendor->vendorInfo + vendor->vendorInfoSize);
@@ -420,7 +624,9 @@ bool parse_eventlog(tpm2_eventlog_context *ctx, BYTE const *eventlog, size_t siz
             }
         }
 
-        return foreach_event2(ctx, next, size);
+        bool retu = foreach_event2(ctx, next, size);
+
+        return retu;
     }
 
     /* No specid event found. sha1 log format will be parsed. */
