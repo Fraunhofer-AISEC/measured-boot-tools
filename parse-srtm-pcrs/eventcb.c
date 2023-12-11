@@ -562,6 +562,8 @@ eventtype_to_string(UINT32 event_type)
         return "EV_NONHOST_INFO";
     case EV_OMIT_BOOT_DEVICE_EVENTS:
         return "EV_OMIT_BOOT_DEVICE_EVENTS";
+    case EV_POST_CODE2:
+        return "EV_POST_CODE2";
     case EV_EFI_VARIABLE_DRIVER_CONFIG:
         return "EV_EFI_VARIABLE_DRIVER_CONFIG";
     case EV_EFI_VARIABLE_BOOT:
@@ -580,8 +582,24 @@ eventtype_to_string(UINT32 event_type)
         return "EV_EFI_PLATFORM_FIRMWARE_BLOB";
     case EV_EFI_HANDOFF_TABLES:
         return "EV_EFI_HANDOFF_TABLES";
+    case EV_EFI_PLATFORM_FIRMWARE_BLOB2:
+        return "EV_EFI_PLATFORM_FIRMWARE_BLOB2";
+    case EV_EFI_HANDOFF_TABLES2:
+        return "EV_EFI_HANDOFF_TABLES2";
+    case EV_EFI_GPT_EVENT2:
+        return "EV_EFI_GPT_EVENT2";
+    case EV_EFI_HCRTM_EVENT:
+        return "EV_EFI_HCRTM_EVENT";
     case EV_EFI_VARIABLE_AUTHORITY:
         return "EV_EFI_VARIABLE_AUTHORITY";
+    case EV_EFI_SPDM_FIRMWARE_BLOB:
+        return "EV_EFI_SPDM_FIRMWARE_BLOB";
+    case EV_EFI_SPDM_FIRMWARE_CONFIG:
+        return "EV_EFI_SPDM_FIRMWARE_CONFIG";
+    case EV_EFI_SPDM_DEVICE_POLICY:
+        return "EV_EFI_SPDM_DEVICE_POLICY";
+    case EV_EFI_SPDM_DEVICE_AUTHORITY:
+        return "EV_EFI_SPDM_DEVICE_AUTHORITY";
     default:
         return "Unknown event type";
     }

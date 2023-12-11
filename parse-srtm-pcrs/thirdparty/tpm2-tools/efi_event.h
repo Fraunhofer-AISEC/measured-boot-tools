@@ -29,6 +29,7 @@
 #define EV_NONHOST_CONFIG          0x10
 #define EV_NONHOST_INFO            0x11
 #define EV_OMIT_BOOT_DEVICE_EVENTS 0x12
+#define EV_POST_CODE2              0x13
 
 /* TCG EFI Platform Specification For TPM Family 1.1 or 1.2 */
 #define EV_EFI_EVENT_BASE                0x80000000
@@ -44,9 +45,14 @@
 #define EV_EFI_PLATFORM_FIRMWARE_BLOB2   EV_EFI_EVENT_BASE + 0xa
 #define EV_EFI_HANDOFF_TABLES2           EV_EFI_EVENT_BASE + 0xb
 #define EV_EFI_VARIABLE_BOOT2            EV_EFI_EVENT_BASE + 0xc
+#define EV_EFI_GPT_EVENT2                EV_EFI_EVENT_BASE + 0xd
 
 #define EV_EFI_HCRTM_EVENT               EV_EFI_EVENT_BASE + 0x10
 #define EV_EFI_VARIABLE_AUTHORITY        EV_EFI_EVENT_BASE + 0xe0
+#define EV_EFI_SPDM_FIRMWARE_BLOB        EV_EFI_EVENT_BASE + 0xe1
+#define EV_EFI_SPDM_FIRMWARE_CONFIG      EV_EFI_EVENT_BASE + 0xe2
+#define EV_EFI_SPDM_DEVICE_POLICY        EV_EFI_EVENT_BASE + 0xe3
+#define EV_EFI_SPDM_DEVICE_AUTHORITY     EV_EFI_EVENT_BASE + 0xe4
 
 #ifndef PACKED
 #define PACKED __attribute__((__packed__))
