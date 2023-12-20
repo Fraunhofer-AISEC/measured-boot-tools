@@ -10,6 +10,7 @@
 #include "efi_event.h"
 #include "tpm2_alg_util.h"
 #include "tpm2_eventlog.h"
+#include "eventcb.h"
 
 bool digest2_accumulator_callback(TCG_DIGEST2 const *digest, size_t size,
                                   void *data){
@@ -60,6 +61,7 @@ bool foreach_digest2(tpm2_eventlog_context *ctx, unsigned pcr_index, TCG_DIGEST2
             LOG_ERR("insufficient size for digest buffer");
             return false;
         }
+        
 
         if (ctx->digest2_cb != NULL) {
             ret = ctx->digest2_cb(digest, alg_size, ctx->data);
@@ -268,6 +270,7 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
     TCG_EVENT_HEADER2 const *eventhdr;
     size_t event_size;
     bool ret;
+    bool found_hcrtm = false;
 
     for (eventhdr = eventhdr_start, event_size = 0;
          size > 0;
@@ -282,6 +285,32 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
         }
 
         TCG_EVENT2 *event = (TCG_EVENT2*)((uintptr_t)eventhdr->Digests + digests_size);
+
+        if (eventhdr->EventType == EV_EFI_HCRTM_EVENT && eventhdr->PCRIndex == 0) {
+            found_hcrtm = true;
+            cb_data_t* cbData =  (cb_data_t*)ctx->data;
+            cbData->calc_pcrs[0][31] = 0x04; //startup locality shall be set to 0x04 if a H-CRTM event was found
+        }
+
+        /* Handle StartupLocality in replay for PCR0 */
+        if (!found_hcrtm && eventhdr->EventType == EV_NO_ACTION && eventhdr->PCRIndex == 0) {
+            //? this line will get executed if the a startup event was found
+            //printf("found_startuplocality event");
+            if (event_size < sizeof(EV_NO_ACTION_STRUCT)){
+                LOG_ERR("EventSize is too small\n");
+                return false;
+            }
+
+            EV_NO_ACTION_STRUCT *locality_event = (EV_NO_ACTION_STRUCT*)event->Event;
+
+            if (memcmp(locality_event->Signature, STARTUP_LOCALITY_SIGNATURE, sizeof(STARTUP_LOCALITY_SIGNATURE)) == 0){
+                uint8_t locality = locality_event->Cases.StartupLocality;
+                //? set the datathing?
+                cb_data_t* cbData =  (cb_data_t*)ctx->data;
+                cbData->calc_pcrs[0][31] = locality;
+            }
+        }
+
 
         /* event header callback */
         if (ctx->event2hdr_cb != NULL) {

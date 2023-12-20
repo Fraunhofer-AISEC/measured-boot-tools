@@ -6,6 +6,8 @@
 #define CHUNK_SIZE 16384
 #define MAX_PCRS 24
 
+#define SHA256_DIGEST_LENGTH 32
+
 typedef enum { FORMAT_JSON, FORMAT_TEXT } format_t;
 
 typedef struct {
