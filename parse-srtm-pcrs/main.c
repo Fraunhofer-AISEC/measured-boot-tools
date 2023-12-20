@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
-#include "thirdparty/tpm2-tools/tpm2_eventlog.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -74,9 +73,6 @@ tpm_parse_eventlog(cb_data_t *cb_data, const char *filename)
         goto out;
     }
 
-    // copy accumulated data to cb_data (used for summary)
-    memcpy(cb_data->sha256_pcrs, ctx.sha256_pcrs, TPM2_MAX_PCRS*TPM2_SHA256_DIGEST_SIZE);
-
     ret = 0;
 
 out:
@@ -123,6 +119,7 @@ main(int argc, char *argv[])
         .len_pcr_nums = len_pcr_nums,
         .pcr_nums = pcr_nums,
     };
+    memset(cb_data.calc_pcrs, 0x0, sizeof(cb_data.calc_pcrs));
 
     while (argc > 0) {
         if (!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) {
@@ -218,7 +215,7 @@ main(int argc, char *argv[])
                 return -1;
             }
             printf("PCR%d: ", pcr_nums[i]);
-            print_data(cb_data.sha256_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
+            print_data(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
         }
     }
 

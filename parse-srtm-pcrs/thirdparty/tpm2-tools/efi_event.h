@@ -107,13 +107,6 @@ typedef struct {
     UINT64 BlobLength;
 } PACKED UEFI_PLATFORM_FIRMWARE_BLOB;
 
-
-typedef struct {
-  UINT8 BlobDescriptionSize;
-  BYTE  BlobDescription[];
-  /* UEFI_PLATFORM_FIRMWARE_BLOB comes next */
-} PACKED UEFI_PLATFORM_FIRMWARE_BLOB2;
-
 typedef struct {
     UINT32 pcrIndex;
     UINT32 eventType;

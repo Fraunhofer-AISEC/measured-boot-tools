@@ -23,7 +23,6 @@ CSRS := \
 	eventcb.c \
 	hash.c \
 	common.c \
-	thirdparty/tpm2-tools/tpm2_openssl.c \
 	thirdparty/tpm2-tools/tpm2_eventlog.c \
 	thirdparty/tpm2-tools/tpm2_alg_util.c \
 
