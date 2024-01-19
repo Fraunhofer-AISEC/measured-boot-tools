@@ -22,6 +22,9 @@ bool
 event_specid_cb(TCG_EVENT const *event, void *data);
 
 bool
+event_initval_cb(void *data, int locality, int pcr);
+
+bool
 event_header_cb(TCG_EVENT const *event_hdr, size_t size, void *data);
 
 bool

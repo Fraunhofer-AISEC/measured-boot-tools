@@ -271,6 +271,8 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
     size_t event_size;
     bool ret;
     bool found_hcrtm = false;
+    UINT32 pcr_occurence_vector = 0; //bit vector for tracking seen pcrs
+    UINT8 locality = 0;
 
     for (eventhdr = eventhdr_start, event_size = 0;
          size > 0;
@@ -289,13 +291,12 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
         if (eventhdr->EventType == EV_EFI_HCRTM_EVENT && eventhdr->PCRIndex == 0) {
             found_hcrtm = true;
             cb_data_t* cbData =  (cb_data_t*)ctx->data;
-            cbData->calc_pcrs[0][31] = 0x04; //startup locality shall be set to 0x04 if a H-CRTM event was found
+            locality = 0x04; //startup locality shall be set to 0x04 if a H-CRTM event was found
+            cbData->calc_pcrs[0][31] = locality; 
         }
 
         /* Handle StartupLocality in replay for PCR0 */
         if (!found_hcrtm && eventhdr->EventType == EV_NO_ACTION && eventhdr->PCRIndex == 0) {
-            //? this line will get executed if the a startup event was found
-            //printf("found_startuplocality event");
             if (event_size < sizeof(EV_NO_ACTION_STRUCT)){
                 LOG_ERR("EventSize is too small\n");
                 return false;
@@ -305,12 +306,23 @@ bool foreach_event2(tpm2_eventlog_context *ctx, TCG_EVENT_HEADER2 const *eventhd
 
             if (memcmp(locality_event->Signature, STARTUP_LOCALITY_SIGNATURE, sizeof(STARTUP_LOCALITY_SIGNATURE)) == 0){
                 uint8_t locality = locality_event->Cases.StartupLocality;
-                //? set the datathing?
+                locality = locality_event->Cases.StartupLocality;
                 cb_data_t* cbData =  (cb_data_t*)ctx->data;
                 cbData->calc_pcrs[0][31] = locality;
             }
         }
 
+        UINT32 pcrIndex = eventhdr->PCRIndex;
+
+        //adds the TPM_PCR_INIT_VALUE to the eventlog
+        //check if it is the first occurence of the pcr, add a TPM_PCR_INIT_VALUE
+        if (!(pcr_occurence_vector & (1 << pcrIndex))) {
+            pcr_occurence_vector = pcr_occurence_vector | (1 << pcrIndex);
+            if (pcrIndex != 0) {
+                locality = 0;
+            }
+            ctx->initval_cb(ctx->data, locality, eventhdr->PCRIndex);
+        }
 
         /* event header callback */
         if (ctx->event2hdr_cb != NULL) {
