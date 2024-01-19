@@ -60,6 +60,7 @@ tpm_parse_eventlog(cb_data_t *cb_data, const char *filename)
     tpm2_eventlog_context ctx = {
         .data = cb_data,
         .specid_cb = event_specid_cb,
+        .initval_cb = event_initval_cb,
         .event2hdr_cb = event2_header_cb,
         .log_eventhdr_cb = event_header_cb,
         .digest2_cb = event_digest_cb,

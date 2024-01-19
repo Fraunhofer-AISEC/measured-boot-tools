@@ -16,6 +16,7 @@ typedef bool (*EVENT2_CALLBACK)(TCG_EVENT_HEADER2 const *event_hdr, size_t size,
 typedef bool (*EVENT2DATA_CALLBACK)(TCG_EVENT2 const *event, UINT32 type,
                                     void *data, uint32_t eventlog_version);
 typedef bool (*SPECID_CALLBACK)(TCG_EVENT const *event, void *data);
+typedef bool (*INITVAL_CALLBACK)(void *data, int locality, int pcr);
 typedef bool (*LOG_EVENT_CALLBACK)(TCG_EVENT const *event_hdr, size_t size,
                                    void *data);
 
@@ -23,6 +24,7 @@ typedef bool (*LOG_EVENT_CALLBACK)(TCG_EVENT const *event_hdr, size_t size,
 typedef struct {
     void *data;
     SPECID_CALLBACK specid_cb;
+    INITVAL_CALLBACK initval_cb;
     LOG_EVENT_CALLBACK log_eventhdr_cb;
     EVENT2_CALLBACK event2hdr_cb;
     DIGEST2_CALLBACK digest2_cb;

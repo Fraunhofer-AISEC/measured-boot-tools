@@ -20,7 +20,7 @@
 #include "hash.h"
 
 /* converting byte buffer to hex string requires 2x, plus 1 for '\0' */
-#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count)*2 + 1)
+#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count) * 2 + 1)
 #define EVENT_BUF_MAX BYTES_TO_HEX_STRING_SIZE(1024)
 #define DIGEST_HEX_STRING_MAX BYTES_TO_HEX_STRING_SIZE(TPM2_MAX_DIGEST_BUFFER)
 #define MAX_PCRS 24
@@ -110,6 +110,30 @@ event_specid_cb(TCG_EVENT const *event, void *data)
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
                   "name: %s\n\tpcr: %d\n\tsha256: %s\n", eventtype_to_string(event->eventType),
                   event->pcrIndex, hexstr);
+    }
+
+    return true;
+}
+
+bool
+event_initval_cb(void *data, int locality, int pcr)
+{
+    cb_data_t *cb_data = (cb_data_t *)data;
+    char **eventlog = cb_data->eventlog;
+
+    //set the static variable for correct appending to the eventlog
+    active_pcr = pcr;
+
+    if (cb_data->format == FORMAT_JSON) {
+        ADD_EVLOG(
+            eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"TPM_PCR_INIT_VALUE\",\n\t\"pcr\":%d,\n\t\"sha256\":\"000000000000000000000000000000000000000000000000000000000000000%d\"\n},\n",
+            pcr, locality);
+    } else {
+        ADD_EVLOG(
+            eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+            "name: %s\n\tpcr: %d\n\tsha256: 000000000000000000000000000000000000000000000000000000000000000%d\n",
+            "TPM_PCR_INIT_VALUE", pcr, locality);
     }
 
     return true;
