@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <libgen.h>
 
 #include <openssl/pkcs7.h>
 #include <openssl/ssl.h>
@@ -266,6 +267,19 @@ get_template_data(struct event *template)
                 free(template_fmt);
                 return get_module_name(template->template_data + offset, field_len);
             }
+        } else if (strncmp(template->name, "ima-ng", 6) == 0) {
+            if (strncmp(f, "d-ng", 4) == 0) {
+                int algo_len = strlen((char *)template->template_data + offset) + 1;
+
+                digest = template->template_data + offset + algo_len;
+                digest_len = field_len - algo_len;
+
+            } else if (strncmp(f, "n-ng", 4) == 0) {
+                free(template_fmt);
+                return get_module_name(template->template_data + offset, field_len);
+            }
+        } else {
+            WARN("Unknown IMA template %s", template->name);
         }
 
         offset += field_len;
@@ -374,19 +388,23 @@ ima_parse_binary_runtime_measurements(uint8_t *buf, size_t size)
         hash_buf(EVP_sha256(), template_hash, template.template_data, template.template_data_len);
         char *h = convert_bin_to_hex(template_hash, SHA256_DIGEST_LENGTH);
 
+        char *tmp = strdup(module_name);
+        char *name = basename(tmp);
+
         if (first) {
             first = false;
             printf(
-                "[{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
-                module_name, h);
+                "[{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"%s\"\n}",
+                name, h, module_name);
         } else {
             printf(
-                ",\n{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"kernel module\"\n}",
-                module_name, h);
+                ",\n{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":10,\n\t\"sha256\":\"%s\",\n\t\"description\":\"%s\"\n}",
+                name, h, module_name);
         }
 
         free(h);
         free(module_name);
+        free(tmp);
         free(template.template_data);
     }
 

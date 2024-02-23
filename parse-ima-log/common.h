@@ -33,8 +33,8 @@
 #define DBG_WARN (0x2U)
 #define DBG_INFO (0x4U)
 #define DBG_DEBUG (0x8U)
-#define DBG_VERB (0x16U)
-#define DBG_TRACE (32U)
+#define DBG_VERB (0x10U)
+#define DBG_TRACE (0x20U)
 
 // Set the desired debug output here (The definitions from above can be OR'ed)
 #define DEBUG_LEVEL (DBG_ERR | DBG_WARN | DBG_INFO)
