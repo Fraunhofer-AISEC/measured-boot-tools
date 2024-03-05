@@ -2,5 +2,5 @@
 .vscode/
 parse-srtm-pcrs/parse-srtm-pcrs
 calculate-srtm-pcrs/calculate-srtm-pcrs
-parse-ima-log/parse-ima-log
+parse-ima-pcr/parse-ima-pcr
 pcr-extend/pcr-extend

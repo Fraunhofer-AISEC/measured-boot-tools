@@ -37,7 +37,7 @@
 #define DBG_TRACE (0x20U)
 
 // Set the desired debug output here (The definitions from above can be OR'ed)
-#define DEBUG_LEVEL (DBG_ERR | DBG_WARN | DBG_INFO)
+#define DEBUG_LEVEL (DBG_ERR | DBG_WARN | DBG_INFO | DBG_VERB | DBG_TRACE)
 
 #define print(lvl, fmt, ...)                                                                       \
     do {                                                                                           \

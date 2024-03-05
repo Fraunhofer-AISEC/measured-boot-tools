@@ -27,16 +27,16 @@ CSRS := \
 	common.c \
 
 .PHONY: all
-all: parse-ima-log
+all: parse-ima-pcr
 
-.PHONY: parse-ima-log
-parse-ima-log:
-	$(CC) $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) -o parse-ima-log $(CSRS) $(LFLAGS)
+.PHONY: parse-ima-pcr
+parse-ima-pcr:
+	$(CC) $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) -o parse-ima-pcr $(CSRS) $(LFLAGS)
 
 .PHONY: install
 install:
-	install -v -m 0755 ./parse-ima-log /usr/bin/
+	install -v -m 0755 ./parse-ima-pcr /usr/bin/
 
 .PHONY: clean
 clean:
-	rm -f parse-ima-log *.o
+	rm -f parse-ima-pcr *.o
