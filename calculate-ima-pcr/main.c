@@ -218,6 +218,10 @@ calculate_ima_entries_recursively(char *base_path, eventlog_t *evlog)
                     return -1;
                 }
                 char *realfile = realpath(file, NULL);
+                if (!realfile) {
+                    DEBUG("WARN: Failed to get real path for %s\n", file);
+                    continue;
+                }
                 int ret = calculate_ima_entry(realfile, evlog);
                 free(file);
                 free(realfile);
@@ -258,6 +262,10 @@ calculate_ima_entries(char **paths, size_t num_paths, eventlog_t *evlog)
             }
         } else {
             char *path = realpath(paths[i], NULL);
+            if (!path) {
+                printf("WARN: Failed to get real path for %s\n", paths[i]);
+                continue;
+            }
             calculate_ima_entry(path, evlog);
             free(path);
         }
