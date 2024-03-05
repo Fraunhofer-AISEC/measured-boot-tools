@@ -102,7 +102,7 @@ main(int argc, char *argv[])
     argv++;
     argc--;
 
-    WARN("Parsing IMA Measurement list");
+    DEBUG("Parsing IMA Measurement list");
 
     if (argc == 0) {
         ima_file = BINARY_RUNTIME_MEASUREMENTS;
