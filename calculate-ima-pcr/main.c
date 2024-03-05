@@ -34,8 +34,10 @@ print_usage(const char *progname)
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-t,  --tpmpcr [num]\t\tIMA PCR (default: 10\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
-    printf("\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
-    printf("\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
+    printf(
+        "\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
+    printf(
+        "\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
     printf("\n");
 }
 
@@ -64,22 +66,22 @@ evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen)
     char s[1024] = { 0 };
     if (evlog->format == FORMAT_JSON) {
         ret = snprintf(s, sizeof(s),
-                    "{"
-                    "\n\t\"type\":\"TPM Reference Value\","
-                    "\n\t\"name\":\"%s\","
-                    "\n\t\"pcr\":%ld,"
-                    "\n\t\"sha256\":\"%s\","
-                    "\n\t\"description\":\"%s\","
-                    "\n\t\"optional\":true"
-                    "\n},\n",
+                       "{"
+                       "\n\t\"type\":\"TPM Reference Value\","
+                       "\n\t\"name\":\"%s\","
+                       "\n\t\"pcr\":%ld,"
+                       "\n\t\"sha256\":\"%s\","
+                       "\n\t\"description\":\"%s\","
+                       "\n\t\"optional\":true"
+                       "\n},\n",
                        basename(path), evlog->pcr, hashstr, path);
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
-                "name: %s"
-                "\n\tpcr: %ld"
-                "\n\tsha256: %s"
-                "\n\tdescription: %s\n",
-                basename(path), evlog->pcr, hashstr, path);
+                       "name: %s"
+                       "\n\tpcr: %ld"
+                       "\n\tsha256: %s"
+                       "\n\tdescription: %s\n",
+                       basename(path), evlog->pcr, hashstr, path);
     }
     if (!ret) {
         printf("Failed to print eventlog\n");
@@ -112,10 +114,12 @@ out:
     return 0;
 }
 
-char* concat_path_new(const char* s1, const char* s2) {
+char *
+concat_path_new(const char *s1, const char *s2)
+{
     size_t len = snprintf(NULL, 0, "%s/%s", s1, s2);
 
-    char* s = (char*)malloc(len + 1);
+    char *s = (char *)malloc(len + 1);
     if (s == NULL) {
         printf("Memory allocation failed\n");
         return NULL;
@@ -147,16 +151,16 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
     uint32_t template_len;
 
     if (!strcmp(evlog->template, "ima-sig")) {
-        template_len = sizeof(uint32_t) +       // length of hashalgo+hash
-                            hash_len +          // length of sha256:\0<digest>
-                            sizeof(uint32_t) +  // length of binary name
-                            binary_len +        // length of binary\0
-                            sizeof(uint32_t);   // signature length
+        template_len = sizeof(uint32_t) + // length of hashalgo+hash
+                       hash_len +         // length of sha256:\0<digest>
+                       sizeof(uint32_t) + // length of binary name
+                       binary_len +       // length of binary\0
+                       sizeof(uint32_t);  // signature length
     } else if (!strcmp(evlog->template, "ima-ng")) {
-        template_len = sizeof(uint32_t) +       // length of hashalgo+hash
-                            hash_len +          // length of sha256:\0<digest>
-                            sizeof(uint32_t) +  // length of binary name
-                            binary_len;         // length of binary\0
+        template_len = sizeof(uint32_t) + // length of hashalgo+hash
+                       hash_len +         // length of sha256:\0<digest>
+                       sizeof(uint32_t) + // length of binary name
+                       binary_len;        // length of binary\0
     } else {
         printf("Template %s not supported\n", evlog->template);
     }
@@ -166,7 +170,7 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
     // Create ima-sig template
     memcpy(template + cursor, &hash_len, sizeof(uint32_t));
     cursor += sizeof(uint32_t);
-    memcpy(template + cursor, hash_algo, strlen(hash_algo)+1);
+    memcpy(template + cursor, hash_algo, strlen(hash_algo) + 1);
     cursor += strlen(hash_algo) + 1;
     memcpy(template + cursor, hash, SHA256_DIGEST_LENGTH);
     cursor += SHA256_DIGEST_LENGTH;
@@ -189,7 +193,8 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
 }
 
 static int
-calculate_ima_entries_recursively(char *base_path, eventlog_t *evlog) {
+calculate_ima_entries_recursively(char *base_path, eventlog_t *evlog)
+{
     char path[1000];
     struct dirent *dp;
     DIR *dir = opendir(base_path);
@@ -235,7 +240,6 @@ calculate_ima_entries(char **paths, size_t num_paths, eventlog_t *evlog)
     int ret = -1;
 
     for (size_t i = 0; i < num_paths; i++) {
-
         // Check if path exists
         struct stat path_stat;
         ret = stat(paths[i], &path_stat);
@@ -269,12 +273,7 @@ main(int argc, char *argv[])
 {
     int ret = -1;
     const char *progname = argv[0];
-    eventlog_t evlog = {
-        .format = FORMAT_JSON,
-        .log = NULL,
-        .template = NULL,
-        .pcr = 10
-    };
+    eventlog_t evlog = { .format = FORMAT_JSON, .log = NULL, .template = NULL, .pcr = 10 };
     char **paths = NULL;
     size_t num_paths = 0;
 
