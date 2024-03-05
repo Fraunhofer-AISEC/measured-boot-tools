@@ -21,6 +21,7 @@ typedef enum { FORMAT_JSON, FORMAT_TEXT } format_t;
 typedef struct {
     format_t format;
     char *template;
+    char *strip;
     long pcr;
     char *log;
 } eventlog_t;
@@ -34,10 +35,9 @@ print_usage(const char *progname)
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-t,  --tpmpcr [num]\t\tIMA PCR (default: 10\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
-    printf(
-        "\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
-    printf(
-        "\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
+    printf("\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
+    printf("\t-s,  --strip <path>\t\tPath prefix to be stripped from paths before hashing\n");
+    printf("\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
     printf("\n");
 }
 
@@ -84,7 +84,7 @@ evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen)
                        basename(path), evlog->pcr, hashstr, path);
     }
     if (!ret) {
-        printf("Failed to print eventlog\n");
+        printf("Failed to print event log\n");
         ret = -1;
         goto out;
     }
@@ -114,7 +114,7 @@ out:
     return 0;
 }
 
-char *
+static char *
 concat_path_new(const char *s1, const char *s2)
 {
     size_t len = snprintf(NULL, 0, "%s/%s", s1, s2);
@@ -128,6 +128,17 @@ concat_path_new(const char *s1, const char *s2)
     snprintf(s, len + 1, "%s/%s", s1, s2);
 
     return s;
+}
+
+static char *
+strip_prefix_new(char *s, char *prefix) {
+    if (!s) {
+        return NULL;
+    }
+    if (prefix && strncmp(s, prefix, strlen(prefix)) == 0) {
+        return strdup(s + strlen(prefix));
+    }
+    return strdup(s);
 }
 
 static int
@@ -144,9 +155,16 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
         return -1;
     }
 
+    // Strip binary path of potential prefixes
+    char *stripped_path = strip_prefix_new(path, evlog->strip);
+    if (!stripped_path) {
+        printf("Failed to strip path\n");
+        return -1;
+    }
+
     const char *hash_algo = "sha256:";
     uint32_t hash_len = strlen("sha256:") + 1 + SHA256_DIGEST_LENGTH;
-    uint32_t binary_len = strlen(path) + 1;
+    uint32_t path_len = strlen(stripped_path) + 1;
     uint32_t sig_len = 0x0;
     uint32_t template_len;
 
@@ -154,15 +172,17 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
         template_len = sizeof(uint32_t) + // length of hashalgo+hash
                        hash_len +         // length of sha256:\0<digest>
                        sizeof(uint32_t) + // length of binary name
-                       binary_len +       // length of binary\0
+                       path_len +       // length of binary\0
                        sizeof(uint32_t);  // signature length
     } else if (!strcmp(evlog->template, "ima-ng")) {
         template_len = sizeof(uint32_t) + // length of hashalgo+hash
                        hash_len +         // length of sha256:\0<digest>
                        sizeof(uint32_t) + // length of binary name
-                       binary_len;        // length of binary\0
+                       path_len;        // length of binary\0
     } else {
         printf("Template %s not supported\n", evlog->template);
+        free(stripped_path);
+        return -1;
     }
     uint8_t template[template_len];
     uint32_t cursor = 0;
@@ -174,11 +194,11 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
     cursor += strlen(hash_algo) + 1;
     memcpy(template + cursor, hash, SHA256_DIGEST_LENGTH);
     cursor += SHA256_DIGEST_LENGTH;
-    memcpy(template + cursor, &binary_len, sizeof(uint32_t));
+    memcpy(template + cursor, &path_len, sizeof(uint32_t));
     cursor += sizeof(uint32_t);
-    memcpy(template + cursor, path, strlen(path) + 1);
+    memcpy(template + cursor, stripped_path, strlen(stripped_path) + 1);
     if (!strcmp(evlog->template, "ima-sig")) {
-        cursor += strlen(path) + 1;
+        cursor += strlen(stripped_path) + 1;
         memcpy(template + cursor, &sig_len, sizeof(uint32_t));
     }
 
@@ -187,7 +207,9 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
     hash_buf(EVP_sha256(), template_hash, template, template_len);
 
     // Write entry
-    evlog_add(evlog, path, template_hash, sizeof(template_hash));
+    evlog_add(evlog, stripped_path, template_hash, sizeof(template_hash));
+
+    free(stripped_path);
 
     return ret;
 }
@@ -281,7 +303,7 @@ main(int argc, char *argv[])
 {
     int ret = -1;
     const char *progname = argv[0];
-    eventlog_t evlog = { .format = FORMAT_JSON, .log = NULL, .template = NULL, .pcr = 10 };
+    eventlog_t evlog = { .format = FORMAT_JSON, .log = NULL, .template = NULL, .strip = NULL, .pcr = 10 };
     char **paths = NULL;
     size_t num_paths = 0;
 
@@ -324,6 +346,15 @@ main(int argc, char *argv[])
             num_paths++;
             argv += 2;
             argc -= 2;
+        } else if ((!strcmp(argv[0], "-s") || !strcmp(argv[0], "--strip")) && argc >= 2) {
+            evlog.strip = (char *)malloc(strlen(argv[1]) + 1);
+            if (!evlog.strip) {
+                printf("Failed to allocate memory\n");
+                goto out;
+            }
+            strncpy(evlog.strip, argv[1], strlen(argv[1]) + 1);
+            argv += 2;
+            argc -= 2;
         } else if ((!strcmp(argv[0], "-i") || !strcmp(argv[0], "--imatemplate")) && argc >= 2) {
             evlog.template = (char *)malloc(strlen(argv[1]) + 1);
             if (!evlog.template) {
@@ -340,13 +371,20 @@ main(int argc, char *argv[])
         }
     }
 
+    if (paths == NULL) {
+        printf("No paths specified\n");
+        print_usage(progname);
+        goto out;
+    }
+
     if (evlog.template == NULL) {
-        evlog.template = "ima-sig";
+        evlog.template = strdup("ima-sig");
     }
 
     DEBUG("Format: %d\n", evlog.format);
     DEBUG("IMA PCR: %ld\n", evlog.pcr);
     DEBUG("Template: %s\n", evlog.template);
+    DEBUG("Strip path prefix: %s\n", evlog.strip);
     DEBUG("Paths: ");
     for (size_t i = 0; i < num_paths; i++) {
         if (i < (num_paths - 1)) {
@@ -361,14 +399,14 @@ main(int argc, char *argv[])
         printf("Failed to calculate ima entries\n");
         goto out;
     }
+    if (!evlog.log) {
+        printf("Failed to print event log: null\n");
+        goto out;
+    }
 
     // Create json array
     if (evlog.format == FORMAT_JSON) {
         printf("[");
-    }
-    if (!evlog.log) {
-        printf("Failed to print event log: null\n");
-        goto out;
     }
     // Remove last colon on final event log entry if format is json
     if (evlog.format == FORMAT_JSON) {
@@ -378,5 +416,17 @@ main(int argc, char *argv[])
     printf("%s\n", evlog.log);
 
 out:
+    if (evlog.log) {
+        free(evlog.log);
+    }
+    if (evlog.strip) {
+        free(evlog.strip);
+    }
+    if (evlog.template) {
+        free(evlog.template);
+    }
+    if (paths) {
+        free(paths);
+    }
     return ret;
 }
