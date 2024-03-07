@@ -72,7 +72,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
     uint8_t hash_ev_s_crtm_version[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_s_crtm_version, (uint8_t *)ev_s_crtm_version,
              sizeof(ev_s_crtm_version));
-    evlog_add(evlog, 0, "EV_S_CRTM_VERSION", 0, hash_ev_s_crtm_version,
+    evlog_add(evlog, 0, "EV_S_CRTM_VERSION", hash_ev_s_crtm_version,
                  "CRTM Version String");
 
     DEBUG("Extracting FVMAIN_COMPACT.Fv from OVMF.fd\n");
@@ -119,7 +119,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
         printf("Failed to measure PEIFV\n");
         goto out;
     }
-    evlog_add(evlog, 0, "PEIFV", 0, peifv_hash, "OVMF UEFI PEI Firmware Volume");
+    evlog_add(evlog, 0, "PEIFV", peifv_hash, "OVMF UEFI PEI Firmware Volume");
 
     // Measure DXEFV
     uint8_t dxefv_hash[SHA256_DIGEST_LENGTH];
@@ -128,7 +128,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
         printf("Failed to measure DXEFV\n");
         goto out;
     }
-    evlog_add(evlog, 0, "DXEFV", 0, dxefv_hash, "OVMF UEFI DXE Firmware Volume");
+    evlog_add(evlog, 0, "DXEFV", dxefv_hash, "OVMF UEFI DXE Firmware Volume");
 
     // EV_SEPARATOR
     ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -139,7 +139,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    evlog_add(evlog, 0, "EV_SEPARATOR", 0, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 0, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     // Extend all values
     hash_extend(EVP_sha256(), pcr, hash_ev_s_crtm_version, SHA256_DIGEST_LENGTH);
@@ -180,29 +180,29 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     // EV_PLATFORM_CONFIG_FLAGS: etc/table-loader
     uint8_t hash_table_loader[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_table_loader, "etc/table-loader");
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_table_loader, "etc/table-loader");
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/rsdp
     uint8_t hash_acpi_rsdp[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_acpi_rsdp, "etc/acpi/rsdp");
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_rsdp, "etc/acpi/rsdp");
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
     uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_tpm_log, "etc/tpm/log");
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
     uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", 1, hash_acpi_tables, "etc/acpi/tables");
+    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables, "etc/acpi/tables");
 
     // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
     uint8_t efi_variable_boot[2] = { 0 };
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
              sizeof(efi_variable_boot));
-    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot,
+    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
                  "Hash EFI Variable Boot: Hash(0000)");
 
     // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
@@ -218,7 +218,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     // Hash: 3197be1e300fa1600d1884c3a4bd4a90a15405bfb546cf2e6cf6095f8c362a93
     hash_buf(EVP_sha256(), hash_efi_variable_boot2, (uint8_t *)efi_variable_boot2, len);
     evlog_add(
-        evlog, 1, "EV_EFI_VARIABLE_BOOT", 1, hash_efi_variable_boot2,
+        evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot2,
         "HASH(090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400)");
 
     // EV_SEPARATOR
@@ -229,7 +229,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    evlog_add(evlog, 1, "EV_SEPARATOR", 1, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 1, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_table_loader, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
@@ -285,7 +285,7 @@ calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drive
             printf("printf: Failed to measure PE Image: %llx\n", status);
             return -1;
         }
-        evlog_add(evlog, 2, "EV_EFI_BOOT_SERVICES_DRIVER", 2, hash_driver,
+        evlog_add(evlog, 2, "EV_EFI_BOOT_SERVICES_DRIVER", hash_driver,
                      basename((char *)drivers[i]));
 
         hash_extend(EVP_sha256(), pcr, hash_driver, SHA256_DIGEST_LENGTH);
@@ -302,7 +302,7 @@ calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drive
     }
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
-    evlog_add(evlog, 2, "EV_SEPARATOR", 2, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 2, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -337,7 +337,7 @@ calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    evlog_add(evlog, 3, "EV_SEPARATOR", 3, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 3, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -345,7 +345,7 @@ calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
 }
 
 /**
- * Calculates PCR 4
+ * Calculates PCR 4 for systems without bootloader
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
@@ -383,7 +383,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
         printf("printf: Failed to measure PE Image: %llx\n", status);
         goto out;
     }
-    evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", 4, hash_kernel,
+    evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", hash_kernel,
                  basename((char *)kernel_file));
 
     // TCG PCClient Firmware Spec: https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf 10.4.4
@@ -391,7 +391,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
     char *action_data = "Calling EFI Application from Boot Option";
     uint8_t hash_efi_action[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action, (uint8_t *)action_data, strlen(action_data));
-    evlog_add(evlog, 4, "EV_EFI_ACTION", 4, hash_efi_action,
+    evlog_add(evlog, 4, "EV_EFI_ACTION", hash_efi_action,
                  "HASH('Calling EFI Application from Boot Option')");
 
     // EV_SEPARATOR
@@ -403,7 +403,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    evlog_add(evlog, 4, "EV_SEPARATOR", 4, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 4, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_kernel, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_action, SHA256_DIGEST_LENGTH);
@@ -418,7 +418,7 @@ out:
 }
 
 /**
- * Calculates PCR 5
+ * Calculates PCR 5 for systems without bootloader
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
@@ -439,14 +439,14 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    evlog_add(evlog, 5, "EV_SEPARATOR", 5, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 5, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     // EV_EFI_ACTION "Exit Boot Services Invocation"
     char *efi_action_boot_invocation = "Exit Boot Services Invocation";
     uint8_t hash_efi_action_boot_invocation[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action_boot_invocation, (uint8_t *)efi_action_boot_invocation,
              strlen(efi_action_boot_invocation));
-    evlog_add(evlog, 5, "EV_EFI_ACTION", 5, hash_efi_action_boot_invocation,
+    evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_invocation,
                  "HASH('Exit Boot Services Invocation')");
 
     // EV_EFI_ACTION "Exit Boot Services Returned with Success"
@@ -454,7 +454,7 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_efi_action_boot_exit[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action_boot_exit, (uint8_t *)efi_action_boot_exit,
              strlen(efi_action_boot_exit));
-    evlog_add(evlog, 5, "EV_EFI_ACTION", 5, hash_efi_action_boot_exit,
+    evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_exit,
                  "HASH('Exit Boot Services Returned with Success')");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
@@ -486,7 +486,7 @@ calculate_pcr6(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    evlog_add(evlog, 6, "EV_SEPARATOR", 6, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 6, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -519,7 +519,7 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
-    evlog_add(evlog, 7, "EV_SEPARATOR", 7, hash_ev_separator, "HASH(00000000)");
+    evlog_add(evlog, 7, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
@@ -527,7 +527,7 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
 }
 
 /**
- * Calculates PCR 8
+ * Calculates PCR 8 for systems without grub
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *

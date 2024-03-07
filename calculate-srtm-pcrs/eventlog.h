@@ -25,8 +25,5 @@ typedef struct {
 } eventlog_t;
 
 int
-evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr, uint8_t *hash,
+evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash,
              const char *desc);
-
-int
-evlog_add_char16(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr, uint8_t *hash, const unsigned short *desc);

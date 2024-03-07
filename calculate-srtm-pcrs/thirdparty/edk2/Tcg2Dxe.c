@@ -144,7 +144,7 @@ int MeasureVariable(
 
   // TODO replace hardcoded event type
   if (EventType == EV_EFI_VARIABLE_DRIVER_CONFIG) {
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", 7, hash, VarNameNarrow);
+    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", hash, VarNameNarrow);
   } else {
     printf("Unknown event type 0x%x\n", EventType);
   }

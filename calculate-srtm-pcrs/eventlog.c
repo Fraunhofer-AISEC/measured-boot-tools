@@ -23,7 +23,7 @@ encode_hex(const uint8_t *bin, int length)
 }
 
 int
-evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr, uint8_t *hash,
+evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash,
              const char *desc)
 {
     int ret;
@@ -43,14 +43,14 @@ evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint32_t pcr,
                        "\n\t\"sha256\":\"%s\","
                        "\n\t\"description\":\"%s\""
                        "\n},\n",
-                       name, pcr, hashstr, desc);
+                       name, pcr_index, hashstr, desc);
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
                        "name: %s"
                        "\n\tpcr: %d"
                        "\n\tsha256: %s"
                        "\n\tdescription: %s\n",
-                       name, pcr, hashstr, desc);
+                       name, pcr_index, hashstr, desc);
     }
     if (!ret) {
         printf("Failed to print eventlog\n");
