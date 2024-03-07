@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <uchar.h>
+#include <openssl/evp.h>
 #include <openssl/sha.h>
 
 #include "efi_event.h"
@@ -94,9 +95,10 @@ print_usage(const char *progname)
     INFO("\nUsage: %s [options...]", progname);
     INFO("\t-h,  --help\t\tPrint help text");
     INFO("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
-    INFO(
-        "\t-p,  --pcrs <nums>\t\tThe numbers of the PCRs to be parsed as a comma separated list without spaces");
+    INFO("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces");
+    INFO("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs");
     INFO("\t-s,  --summary\t\tPrint the final extended PCR values");
+    INFO("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs");
     INFO("\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
     INFO("\n");
 }
@@ -104,7 +106,9 @@ print_usage(const char *progname)
 int
 main(int argc, char *argv[])
 {
-    bool summary = false;
+    bool print_summary = false;
+    bool print_eventlog = false;
+    bool print_aggregate = false;
     uint32_t *pcr_nums = NULL;
     size_t len_pcr_nums = 0;
     format_t format = FORMAT_TEXT;
@@ -126,8 +130,16 @@ main(int argc, char *argv[])
         if (!strcmp(argv[0], "-h") || !strcmp(argv[0], "--help")) {
             print_usage(progname);
             goto out;
+        } else if (!strcmp(argv[0], "-e") || !strcmp(argv[0], "--eventlog")) {
+            print_eventlog = true;
+            argv++;
+            argc--;
         } else if (!strcmp(argv[0], "-s") || !strcmp(argv[0], "--summary")) {
-            summary = true;
+            print_summary = true;
+            argv++;
+            argc--;
+        } else if (!strcmp(argv[0], "-a") || !strcmp(argv[0], "--aggregate")) {
+            print_aggregate = true;
             argv++;
             argc--;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
@@ -189,34 +201,81 @@ main(int argc, char *argv[])
         goto out;
     }
 
-    if (format == FORMAT_JSON) {
-        printf("[");
-    }
-    for (size_t i = 0; i < len_pcr_nums; i++) {
-        if (!cb_data.eventlog[pcr_nums[i]]) {
-            ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
-            return -1;
+    if (print_eventlog) {
+        if (format == FORMAT_JSON) {
+            printf("[");
         }
-        // Remove last colon on final event log entry
-        if (i == (len_pcr_nums)-1) {
-            cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 2] = '\n';
-            cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 1] = '\0';
-        }
-        printf("%s", cb_data.eventlog[pcr_nums[i]]);
-    }
-    if (format == FORMAT_JSON) {
-        printf("]\n");
-    }
-
-    if (summary) {
-        printf("SUMMARY -------------------------\n");
         for (size_t i = 0; i < len_pcr_nums; i++) {
             if (!cb_data.eventlog[pcr_nums[i]]) {
                 ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
                 return -1;
             }
-            printf("PCR%d: ", pcr_nums[i]);
-            print_data(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
+            // Remove last colon on final event log entry
+            if (i == (len_pcr_nums)-1) {
+                cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 2] = '\n';
+                cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 1] = '\0';
+            }
+            printf("%s", cb_data.eventlog[pcr_nums[i]]);
+        }
+        if (format == FORMAT_JSON) {
+            printf("]\n");
+        }
+    }
+
+    if (print_summary) {
+        if (format == FORMAT_JSON) {
+            printf("[");
+        }
+        for (size_t i = 0; i < len_pcr_nums; i++) {
+            if (!cb_data.eventlog[pcr_nums[i]]) {
+                ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
+                return -1;
+            }
+
+            if (format == FORMAT_JSON) {
+                printf(
+                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
+                    pcr_nums[i], pcr_nums[i]);
+                print_data_no_lf(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
+                printf("\"\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
+                if (i < len_pcr_nums - 1) {
+                    printf(",\n");
+                }
+            } else if (format == FORMAT_TEXT) {
+                printf("PCR%d: ", pcr_nums[i]);
+                print_data(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
+            } else {
+                printf("Unknown output format\n");
+                goto out;
+            }
+        }
+        if (format == FORMAT_JSON) {
+            printf("]\n");
+        }
+    }
+
+    if (print_aggregate) {
+        uint8_t aggregate[SHA256_DIGEST_LENGTH] = { 0 };
+
+        EVP_MD_CTX *ctx;
+        ctx = EVP_MD_CTX_new();
+        EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
+        for (uint32_t i = 0; i < len_pcr_nums; i++) {
+            EVP_DigestUpdate(ctx, cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH);
+        }
+        EVP_DigestFinal_ex(ctx, aggregate, NULL);
+        EVP_MD_CTX_free(ctx);
+
+        if (format == FORMAT_JSON) {
+            printf("{\n\t\"type\":\"TPM PCR Aggregate\",\n\t\"sha256\":\"");
+            print_data_no_lf(aggregate, SHA256_DIGEST_LENGTH, NULL);
+            printf("\"\n}\n");
+        } else if (format == FORMAT_TEXT) {
+            printf("PCR Aggregate: ");
+            print_data(aggregate, SHA256_DIGEST_LENGTH, NULL);
+        } else {
+            printf("Unknown output format\n");
+            goto out;
         }
     }
 

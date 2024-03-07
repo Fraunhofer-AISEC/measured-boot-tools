@@ -60,4 +60,7 @@
 void
 print_data(const uint8_t *buf, size_t len, const char *info);
 
+void
+print_data_no_lf(const uint8_t *buf, size_t len, const char *info);
+
 #endif

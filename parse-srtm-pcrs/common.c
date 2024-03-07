@@ -20,3 +20,13 @@ print_data(const uint8_t *buf, size_t len, const char *info)
     }
     printf("\n");
 }
+
+void
+print_data_no_lf(const uint8_t *buf, size_t len, const char *info)
+{
+    if (info)
+        printf("%s: ", info);
+    for (size_t i = 0; i < len; i++) {
+        printf("%02x", buf[i]);
+    }
+}
