@@ -7,6 +7,10 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <libgen.h>
 #include <unistd.h>
 #include "libgen.h"
 
@@ -28,6 +32,9 @@
 #include "hash.h"
 #include "config.h"
 #include "eventlog.h"
+#include "paths.h"
+
+
 
 #define MAX_PCRS 24
 
@@ -537,9 +544,9 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
 static int
 calculate_pcr8(uint8_t *pcr, eventlog_t *evlog)
 {
-    (void)pcr;
     (void)evlog;
-    printf("Calculate PCR8 not implemented\n");
+
+    memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
     return 0;
 }
@@ -547,8 +554,6 @@ calculate_pcr8(uint8_t *pcr, eventlog_t *evlog)
 /**
  * Calculates PCR 9
  *
- * Only applicable if ubuntu kernel is measured into PCR 10 (i.e., if GRUB is used).
- * If no dedicated bootloader is used, see calculation of PCR4 for the kernel
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
@@ -556,35 +561,44 @@ calculate_pcr8(uint8_t *pcr, eventlog_t *evlog)
  * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr9(uint8_t *pcr, eventlog_t *evlog)
+calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, char **paths, size_t num_paths)
 {
+    int ret = -1;
+
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // PCR9 is the second PCR with Static Operating System Measurements
-    char *file_list[] = { "/boot/efi/EFI/debian/grub.cfg",
-                          "/boot/grub/x86_64-efi/command.lst",
-                          "/boot/grub/x86_64-efi/fs.lst",
-                          "/boot/grub/x86_64-efi/crypto.lst",
-                          "/boot/grub/x86_64-efi/terminal.lst",
-                          "/boot/grub/grub.cfg",
-                          "/boot/grub/grubenv",
-                          "/boot/grub/grubenv",
-                          "/boot/grub/fonts/unicode.pf2",
-                          "/boot/vmlinuz-5.10.40",
-                          "/boot/initrd.img-5.10.40" };
-
-    uint8_t hash[ARRAY_SIZE(file_list)][SHA256_DIGEST_LENGTH];
-
-    for (size_t i = 0; i < ARRAY_SIZE(file_list); i++) {
-        int ret = hash_file(EVP_sha256(), hash[i], file_list[i]);
+    // Recursively iterate over paths and log and extend all files
+    for (size_t i = 0; i < num_paths; i++) {
+        // Check if path exists
+        struct stat path_stat;
+        ret = stat(paths[i], &path_stat);
         if (ret) {
+            printf("Path %s does not exist\n", paths[i]);
             return -1;
         }
-        evlog_add(evlog, 6, "GRUB Measurement", 9, hash[i], file_list[i]);
 
-        hash_extend(EVP_sha256(), pcr, hash[i], SHA256_DIGEST_LENGTH);
+        // Check if path is directory
+        if (S_ISDIR(path_stat.st_mode)) {
+            DEBUG("Path %s is a directory. Traversing..\n", paths[i]);
+            ret = calculate_paths_recursively(paths[i], pcr, evlog);
+            if (ret) {
+                printf("Failed to calculate ima entries recursively\n");
+                return -1;
+            }
+        } else {
+            char *path = realpath(paths[i], NULL);
+            if (!path) {
+                printf("WARN: Failed to get real path for %s\n", paths[i]);
+                continue;
+            }
+            calculate_path(path, pcr, evlog);
+            free(path);
+        }
     }
-    return 0;
+
+    ret = 0;
+
+    return ret;
 }
 
 static void
@@ -597,15 +611,16 @@ print_usage(const char *progname)
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-e,  --eventlog\t\t\tPrint detailed eventlog\n");
     printf("\t-s,  --summary\t\t\tPrint final PCR values\n");
-    printf("\t     --aggregate\t\t\tPrint aggregate PCR value");
+    printf("\t     --aggregate\t\tPrint aggregate PCR value\n");
     printf("\t-p,  --pcrs <num[,num...]>\tPCRs to be calculated\n");
-    printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple -d possible)\n");
+    printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple possible)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-c,  --config\t\t\tPath to configuration file\n");
     printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
     printf("\t-g,  --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
+    printf("\t     --Path\t\t\t to folder or file to be extended into PCR9 (multiple possible)\n");
     printf("\n");
 }
 
@@ -637,6 +652,8 @@ main(int argc, char *argv[])
     char *pcr_str = NULL;
     char **uefi_drivers = NULL;
     size_t num_uefi_drivers = 0;
+    char **paths = NULL;
+    size_t num_paths = 0;
     eventlog_t evlog = {
         .format = FORMAT_TEXT,
         .log = { 0 }
@@ -737,6 +754,15 @@ main(int argc, char *argv[])
             pcr1_cfg.tpm_log = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
+        } else if ((!strcmp(argv[0], "--path")) && argc >= 2) {
+            paths = (char **)realloc(paths, sizeof(char *) * (num_paths + 1));
+            paths[num_paths] = argv[1];
+            if (paths[num_paths][strlen(paths[num_paths]) - 1] == '/') {
+                paths[num_paths][strlen(paths[num_paths]) - 1] = '\0';
+            }
+            num_paths++;
+            argv += 2;
+            argc -= 2;
         } else {
             printf("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
@@ -763,8 +789,10 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (!ramdisk) {
-        DEBUG("Calculating PCR4 without initrd\n");
+    if (!paths && contains(pcr_nums, len_pcr_nums, 9)) {
+        printf("Paths to files/folders must be specified for PCR9\n");
+        print_usage(progname);
+        goto out;
     }
     if (!ovmf && contains(pcr_nums, len_pcr_nums, 0)) {
         printf("OVMF must specified for calculating PCR0\n");
@@ -797,6 +825,9 @@ main(int argc, char *argv[])
     DEBUG("\tAggregate: %d\n", print_aggregate);
     for (size_t i = 0; i < num_uefi_drivers; i++) {
         DEBUG("\tUEFI driver: %s\n", uefi_drivers[i]);
+    }
+    for (size_t i = 0; i < num_paths; i++) {
+        DEBUG("\tPath: %s\n", paths[i]);
     }
 
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
@@ -856,7 +887,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 9)) {
-        if (calculate_pcr9(pcr[9], &evlog)) {
+        if (calculate_pcr9(pcr[9], &evlog, paths, num_paths)) {
             printf("Failed to calculate event log for PCR 9\n");
             goto out;
         }
