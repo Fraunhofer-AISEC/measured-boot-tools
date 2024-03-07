@@ -597,6 +597,7 @@ print_usage(const char *progname)
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-e,  --eventlog\t\t\tPrint detailed eventlog\n");
     printf("\t-s,  --summary\t\t\tPrint final PCR values\n");
+    printf("\t     --aggregate\t\t\tPrint aggregate PCR value");
     printf("\t-p,  --pcrs <num[,num...]>\tPCRs to be calculated\n");
     printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple -d possible)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
@@ -629,6 +630,7 @@ main(int argc, char *argv[])
     const char *ovmf = NULL;
     bool print_event_log = false;
     bool print_summary = false;
+    bool print_aggregate = false;
     uint32_t *pcr_nums = NULL;
     size_t len_pcr_nums = 0;
     const char *progname = argv[0];
@@ -689,6 +691,10 @@ main(int argc, char *argv[])
             argc--;
         } else if ((!strcmp(argv[0], "-s") || !strcmp(argv[0], "--summary"))) {
             print_summary = true;
+            argv++;
+            argc--;
+        } else if (!strcmp(argv[0], "--aggregate")) {
+            print_aggregate = true;
             argv++;
             argc--;
         } else if ((!strcmp(argv[0], "-p") || !strcmp(argv[0], "--pcrs")) && argc >= 2) {
@@ -788,6 +794,7 @@ main(int argc, char *argv[])
     DEBUG("\tOVMF: %s\n", ovmf);
     DEBUG("\tEventlog:  %d\n", print_event_log);
     DEBUG("\tSummary:   %d\n", print_summary);
+    DEBUG("\tAggregate: %d\n", print_aggregate);
     for (size_t i = 0; i < num_uefi_drivers; i++) {
         DEBUG("\tUEFI driver: %s\n", uefi_drivers[i]);
     }
@@ -855,7 +862,7 @@ main(int argc, char *argv[])
         }
     }
 
-    // Print event log with all extend operations if specified
+    // Print event log with all extend operations if requested
     if (print_event_log) {
         DEBUG("\nPCR EVENT LOG: \n");
         if (evlog.format == FORMAT_JSON) {
@@ -876,9 +883,12 @@ main(int argc, char *argv[])
         printf("\n");
     }
 
-    // Print final PCRs in specified format
+    // Print final PCRs if requested
     if (print_summary) {
         DEBUG("\nPCR SUMMARY: \n");
+        if (evlog.format == FORMAT_JSON) {
+            printf("[");
+        }
         for (uint32_t i = 0; i < len_pcr_nums; i++) {
             if (evlog.format == FORMAT_JSON) {
                 printf(
@@ -888,8 +898,6 @@ main(int argc, char *argv[])
                 printf("\"\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
                 if (i < len_pcr_nums - 1) {
                     printf(",\n");
-                } else {
-                    printf("\n");
                 }
             } else if (evlog.format == FORMAT_TEXT) {
                 printf("PCR%d: ", pcr_nums[i]);
@@ -898,6 +906,36 @@ main(int argc, char *argv[])
                 printf("Unknown output format\n");
                 goto out;
             }
+        }
+        if (evlog.format == FORMAT_JSON) {
+            printf("]\n");
+        }
+    }
+
+    // Print aggregated PCR value over all specified PCRs if requested
+    if (print_aggregate) {
+        DEBUG("\nPCR AGGREGATE: \n");
+        uint8_t aggregate[SHA256_DIGEST_LENGTH] = { 0x0 };
+
+        EVP_MD_CTX *ctx;
+        ctx = EVP_MD_CTX_new();
+        EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
+        for (uint32_t i = 0; i < len_pcr_nums; i++) {
+            EVP_DigestUpdate(ctx, pcr[pcr_nums[i]], SHA256_DIGEST_LENGTH);
+        }
+        EVP_DigestFinal_ex(ctx, aggregate, NULL);
+        EVP_MD_CTX_free(ctx);
+
+        if (evlog.format == FORMAT_JSON) {
+            printf("{\n\t\"type\":\"TPM PCR Aggregate\",\n\t\"sha256\":\"");
+            print_data_no_lf(aggregate, SHA256_DIGEST_LENGTH, NULL);
+            printf("\"\n}\n");
+        } else if (evlog.format == FORMAT_TEXT) {
+            printf("PCR Aggregate: ");
+            print_data(aggregate, SHA256_DIGEST_LENGTH, NULL);
+        } else {
+            printf("Unknown output format\n");
+            goto out;
         }
     }
 
