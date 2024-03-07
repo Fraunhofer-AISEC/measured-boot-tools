@@ -207,11 +207,10 @@ main(int argc, char *argv[])
         }
         for (size_t i = 0; i < len_pcr_nums; i++) {
             if (!cb_data.eventlog[pcr_nums[i]]) {
-                ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
-                return -1;
+                continue;
             }
             // Remove last colon on final event log entry
-            if (i == (len_pcr_nums)-1) {
+            if (i == (len_pcr_nums-1)) {
                 cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 2] = '\n';
                 cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 1] = '\0';
             }
@@ -227,11 +226,6 @@ main(int argc, char *argv[])
             printf("[");
         }
         for (size_t i = 0; i < len_pcr_nums; i++) {
-            if (!cb_data.eventlog[pcr_nums[i]]) {
-                ERROR("Failed to print Event Log for PCR %d\n", pcr_nums[i]);
-                return -1;
-            }
-
             if (format == FORMAT_JSON) {
                 printf(
                     "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
