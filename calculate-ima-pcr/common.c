@@ -56,6 +56,17 @@ print_data_ext(uint8_t *buf, uint32_t len, const char *Label)
     printf("\n");
 }
 
+void
+print_data_debug(const uint8_t *buf, size_t len, const char *info)
+{
+    if (info)
+        DEBUG("%s: ", info);
+    for (size_t i = 0; i < len; i++) {
+        DEBUG("%02X", buf[i]);
+    }
+    DEBUG("\n");
+}
+
 unsigned char *
 memdup(const unsigned char *mem, size_t size)
 {

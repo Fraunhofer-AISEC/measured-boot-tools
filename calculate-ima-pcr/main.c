@@ -38,6 +38,7 @@ print_usage(const char *progname)
     printf("\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
     printf("\t-s,  --strip <path>\t\tPath prefix to be stripped from paths before hashing\n");
     printf("\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
+    printf("\t-b,  --boot_aggregate <digest>\tDigest of the IMA boot_aggregate to be added to eventlog\n");
     printf("\n");
 }
 
@@ -54,7 +55,7 @@ encode_hex(const uint8_t *bin, int length)
 }
 
 static int
-evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen)
+evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen, bool optional)
 {
     int ret;
     char *hashstr = encode_hex(hash, hashlen);
@@ -72,9 +73,9 @@ evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen)
                        "\n\t\"pcr\":%ld,"
                        "\n\t\"sha256\":\"%s\","
                        "\n\t\"description\":\"%s\","
-                       "\n\t\"optional\":true"
+                       "\n\t\"optional\":%s"
                        "\n},\n",
-                       basename(path), evlog->pcr, hashstr, path);
+                       basename(path), evlog->pcr, hashstr, path, optional ? "true" : "false");
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
                        "name: %s"
@@ -142,7 +143,59 @@ strip_prefix_new(char *s, char *prefix) {
 }
 
 static int
-calculate_ima_entry(char *path, eventlog_t *evlog)
+calculate_ima_entry(uint8_t hash[SHA256_DIGEST_LENGTH], char *path, eventlog_t *evlog, bool optional)
+{
+    const char *hash_algo = "sha256:";
+    uint32_t ima_digest_len = strlen("sha256:") + 1 + SHA256_DIGEST_LENGTH;
+    uint32_t path_len = strlen(path) + 1;
+    uint32_t sig_len = 0x0;
+    uint32_t template_len;
+
+    if (!strcmp(evlog->template, "ima-sig")) {
+        template_len = sizeof(uint32_t) + // length of hashalgo+hash
+                       ima_digest_len +   // length of sha256:\0<digest>
+                       sizeof(uint32_t) + // length of binary name
+                       path_len +         // length of binary\0
+                       sizeof(uint32_t);  // signature length
+    } else if (!strcmp(evlog->template, "ima-ng")) {
+        template_len = sizeof(uint32_t) + // length of hashalgo+hash
+                       ima_digest_len +   // length of sha256:\0<digest>
+                       sizeof(uint32_t) + // length of binary name
+                       path_len;          // length of binary\0
+    } else {
+        printf("Template %s not supported\n", evlog->template);
+        return -1;
+    }
+    uint8_t template[template_len];
+    uint32_t cursor = 0;
+
+    // Create ima-sig template
+    memcpy(template + cursor, &ima_digest_len, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(template + cursor, hash_algo, strlen(hash_algo) + 1);
+    cursor += strlen(hash_algo) + 1;
+    memcpy(template + cursor, hash, SHA256_DIGEST_LENGTH);
+    cursor += SHA256_DIGEST_LENGTH;
+    memcpy(template + cursor, &path_len, sizeof(uint32_t));
+    cursor += sizeof(uint32_t);
+    memcpy(template + cursor, path, strlen(path) + 1);
+    if (!strcmp(evlog->template, "ima-sig")) {
+        cursor += strlen(path) + 1;
+        memcpy(template + cursor, &sig_len, sizeof(uint32_t));
+    }
+
+    // Calculate hash of template
+    uint8_t template_hash[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), template_hash, template, template_len);
+
+    // Write entry
+    evlog_add(evlog, path, template_hash, sizeof(template_hash), optional);
+
+    return 0;
+}
+
+static int
+calculate_ima_entry_path(char *path, eventlog_t *evlog)
 {
     int ret = -1;
 
@@ -162,52 +215,7 @@ calculate_ima_entry(char *path, eventlog_t *evlog)
         return -1;
     }
 
-    const char *hash_algo = "sha256:";
-    uint32_t hash_len = strlen("sha256:") + 1 + SHA256_DIGEST_LENGTH;
-    uint32_t path_len = strlen(stripped_path) + 1;
-    uint32_t sig_len = 0x0;
-    uint32_t template_len;
-
-    if (!strcmp(evlog->template, "ima-sig")) {
-        template_len = sizeof(uint32_t) + // length of hashalgo+hash
-                       hash_len +         // length of sha256:\0<digest>
-                       sizeof(uint32_t) + // length of binary name
-                       path_len +       // length of binary\0
-                       sizeof(uint32_t);  // signature length
-    } else if (!strcmp(evlog->template, "ima-ng")) {
-        template_len = sizeof(uint32_t) + // length of hashalgo+hash
-                       hash_len +         // length of sha256:\0<digest>
-                       sizeof(uint32_t) + // length of binary name
-                       path_len;        // length of binary\0
-    } else {
-        printf("Template %s not supported\n", evlog->template);
-        free(stripped_path);
-        return -1;
-    }
-    uint8_t template[template_len];
-    uint32_t cursor = 0;
-
-    // Create ima-sig template
-    memcpy(template + cursor, &hash_len, sizeof(uint32_t));
-    cursor += sizeof(uint32_t);
-    memcpy(template + cursor, hash_algo, strlen(hash_algo) + 1);
-    cursor += strlen(hash_algo) + 1;
-    memcpy(template + cursor, hash, SHA256_DIGEST_LENGTH);
-    cursor += SHA256_DIGEST_LENGTH;
-    memcpy(template + cursor, &path_len, sizeof(uint32_t));
-    cursor += sizeof(uint32_t);
-    memcpy(template + cursor, stripped_path, strlen(stripped_path) + 1);
-    if (!strcmp(evlog->template, "ima-sig")) {
-        cursor += strlen(stripped_path) + 1;
-        memcpy(template + cursor, &sig_len, sizeof(uint32_t));
-    }
-
-    // Calculate hash of template
-    uint8_t template_hash[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), template_hash, template, template_len);
-
-    // Write entry
-    evlog_add(evlog, stripped_path, template_hash, sizeof(template_hash));
+    ret = calculate_ima_entry(hash, stripped_path, evlog, true);
 
     free(stripped_path);
 
@@ -244,7 +252,7 @@ calculate_ima_entries_recursively(char *base_path, eventlog_t *evlog)
                     DEBUG("WARN: Failed to get real path for %s\n", file);
                     continue;
                 }
-                int ret = calculate_ima_entry(realfile, evlog);
+                int ret = calculate_ima_entry_path(realfile, evlog);
                 free(file);
                 free(realfile);
                 if (ret) {
@@ -288,7 +296,7 @@ calculate_ima_entries(char **paths, size_t num_paths, eventlog_t *evlog)
                 printf("WARN: Failed to get real path for %s\n", paths[i]);
                 continue;
             }
-            calculate_ima_entry(path, evlog);
+            calculate_ima_entry_path(path, evlog);
             free(path);
         }
     }
@@ -306,6 +314,8 @@ main(int argc, char *argv[])
     eventlog_t evlog = { .format = FORMAT_JSON, .log = NULL, .template = NULL, .strip = NULL, .pcr = 10 };
     char **paths = NULL;
     size_t num_paths = 0;
+    uint8_t *boot_aggregate = NULL;
+    long boot_aggregate_len = 0;
 
     argv++;
     argc--;
@@ -319,6 +329,7 @@ main(int argc, char *argv[])
             } else {
                 printf("Unknown format '%s'\n", argv[1]);
                 print_usage(progname);
+                ret = -1;
                 goto out;
             }
             argv += 2;
@@ -329,6 +340,7 @@ main(int argc, char *argv[])
             if (errno || p == argv[1] || *p != '\0') {
                 printf("-t/--tpm pcrs expects number\n");
                 print_usage(progname);
+                ret = -1;
                 goto out;
             }
             argv += 2;
@@ -350,6 +362,7 @@ main(int argc, char *argv[])
             evlog.strip = (char *)malloc(strlen(argv[1]) + 1);
             if (!evlog.strip) {
                 printf("Failed to allocate memory\n");
+                ret = -1;
                 goto out;
             }
             strncpy(evlog.strip, argv[1], strlen(argv[1]) + 1);
@@ -359,21 +372,33 @@ main(int argc, char *argv[])
             evlog.template = (char *)malloc(strlen(argv[1]) + 1);
             if (!evlog.template) {
                 printf("Failed to allocate memory\n");
+                ret = -1;
                 goto out;
             }
             strncpy(evlog.template, argv[1], strlen(argv[1]) + 1);
             argv += 2;
             argc -= 2;
+        } else if ((!strcmp(argv[0], "-b") || !strcmp(argv[0], "--boot_aggregate")) && argc >= 2) {
+            boot_aggregate = OPENSSL_hexstr2buf(argv[1], &boot_aggregate_len);
+            if (!boot_aggregate) {
+                printf("Failed to allocate memory for boot_aggregate\n");
+                ret = -1;
+                goto out;
+            }
+            argv += 2;
+            argc -= 2;
         } else {
             printf("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
+            ret = -1;
             goto out;
         }
     }
 
-    if (paths == NULL) {
-        printf("No paths specified\n");
+    if (!paths && !boot_aggregate) {
+        printf("No paths and no boot_aggregate specified. Nothing to do\n");
         print_usage(progname);
+        ret = -1;
         goto out;
     }
 
@@ -385,6 +410,9 @@ main(int argc, char *argv[])
     DEBUG("IMA PCR: %ld\n", evlog.pcr);
     DEBUG("Template: %s\n", evlog.template);
     DEBUG("Strip path prefix: %s\n", evlog.strip);
+    if (boot_aggregate) {
+        print_data_debug(boot_aggregate, boot_aggregate_len, "Boot Aggregate");
+    }
     DEBUG("Paths: ");
     for (size_t i = 0; i < num_paths; i++) {
         if (i < (num_paths - 1)) {
@@ -394,13 +422,29 @@ main(int argc, char *argv[])
         }
     }
 
+    if (boot_aggregate) {
+        if (boot_aggregate_len != SHA256_DIGEST_LENGTH) {
+            printf("Only sha256 digests supported\n");
+            ret = -1;
+            goto out;
+        }
+        ret = calculate_ima_entry(boot_aggregate, "boot_aggregate", &evlog, false);
+        if (ret) {
+            printf("Failed to calculate boot_aggregate\n");
+            ret = -1;
+            goto out;
+        }
+    }
+
     ret = calculate_ima_entries(paths, num_paths, &evlog);
     if (ret) {
         printf("Failed to calculate ima entries\n");
+        ret = -1;
         goto out;
     }
     if (!evlog.log) {
         printf("Failed to print event log: null\n");
+        ret = -1;
         goto out;
     }
 
@@ -427,6 +471,9 @@ out:
     }
     if (paths) {
         free(paths);
+    }
+    if (boot_aggregate) {
+        free(boot_aggregate);
     }
     return ret;
 }

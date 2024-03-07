@@ -30,6 +30,9 @@ print_data_ext(uint8_t *buf, uint32_t len, const char *Label);
 void
 print_data_no_lf(const uint8_t *buf, size_t len, const char *info);
 
+void
+print_data_debug(const uint8_t *buf, size_t len, const char *info);
+
 unsigned char *
 memdup(const unsigned char *mem, size_t size);
 
