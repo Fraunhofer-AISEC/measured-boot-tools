@@ -137,7 +137,7 @@ convert_to_char16(const char *in, size_t *out_len)
 {
     iconv_t cd = iconv_open("UTF-16LE", "UTF-8");
     if (cd == (iconv_t)-1) {
-        printf("Failed to open iconv\n");
+        perror("iconv_open");
         return NULL;
     }
 
