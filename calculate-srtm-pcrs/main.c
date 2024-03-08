@@ -613,7 +613,7 @@ print_usage(const char *progname)
     printf("\t     --aggregate\t\tPrint aggregate PCR value\n");
     printf("\t-p,  --pcrs <num[,num...]>\tPCRs to be calculated\n");
     printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple possible)\n");
-    printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
+    printf("\t     --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-c,  --config\t\t\tPath to configuration file\n");
     printf("\t     --cmdline\t\t\tKernel commandline, required for some PCR 9 calculations\n");
     printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
