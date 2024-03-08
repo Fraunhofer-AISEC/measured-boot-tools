@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <iconv.h>
+#include <uchar.h>
 
 #include <openssl/evp.h>
 
@@ -30,7 +32,7 @@ concat_path_new(const char *s1, const char *s2)
     return s;
 }
 
-int
+static int
 calculate_path(char *path, uint8_t *pcr, eventlog_t *evlog)
 {
     uint8_t hash[SHA256_DIGEST_LENGTH];
@@ -45,7 +47,7 @@ calculate_path(char *path, uint8_t *pcr, eventlog_t *evlog)
     return 0;
 }
 
-int
+static int
 calculate_paths_recursively(char *base_path, uint8_t *pcr, eventlog_t *evlog)
 {
     char path[1000];
@@ -89,4 +91,78 @@ calculate_paths_recursively(char *base_path, uint8_t *pcr, eventlog_t *evlog)
     closedir(dir);
 
     return 0;
+}
+
+int
+calculate_paths(uint8_t *pcr, eventlog_t *evlog, char **paths, size_t num_paths)
+{
+    int ret = -1;
+
+    // Recursively iterate over paths and log and extend all files
+    for (size_t i = 0; i < num_paths; i++) {
+        // Check if path exists
+        struct stat path_stat;
+        ret = stat(paths[i], &path_stat);
+        if (ret) {
+            printf("Path %s does not exist\n", paths[i]);
+            return -1;
+        }
+
+        // Check if path is directory
+        if (S_ISDIR(path_stat.st_mode)) {
+            DEBUG("Path %s is a directory. Traversing..\n", paths[i]);
+            ret = calculate_paths_recursively(paths[i], pcr, evlog);
+            if (ret) {
+                printf("Failed to calculate ima entries recursively\n");
+                return -1;
+            }
+        } else {
+            char *path = realpath(paths[i], NULL);
+            if (!path) {
+                printf("WARN: Failed to get real path for %s\n", paths[i]);
+                continue;
+            }
+            calculate_path(path, pcr, evlog);
+            free(path);
+        }
+    }
+
+    ret = 0;
+
+    return ret;
+}
+
+char16_t *
+convert_to_char16(const char *in, size_t *out_len)
+{
+    iconv_t cd = iconv_open("UTF-16LE", "UTF-8");
+    if (cd == (iconv_t)-1) {
+        printf("Failed to open iconv\n");
+        return NULL;
+    }
+
+    *out_len = 2 * strlen(in);
+    char16_t *out = (char16_t *)malloc((*out_len + 1) * sizeof(char16_t));
+    if (!out) {
+        perror("Failed to allocate memory\n");
+        return NULL;
+    }
+
+    char *inbuf = (char *)in;
+    char *outbuf = (char *)out;
+    size_t inbytesleft = strlen(in);
+    size_t outbytesleft = *out_len * sizeof(char16_t);
+    size_t result = iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
+    if (result == (size_t)-1) {
+        printf("Failed to convert\n");
+        free(out);
+        iconv_close(cd);
+        return NULL;
+    }
+
+    out[*out_len] = 0;
+
+    iconv_close(cd);
+
+    return out;
 }

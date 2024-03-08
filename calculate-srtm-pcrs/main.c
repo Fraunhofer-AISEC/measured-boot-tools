@@ -12,7 +12,9 @@
 #include <dirent.h>
 #include <libgen.h>
 #include <unistd.h>
-#include "libgen.h"
+#include <libgen.h>
+#include <wchar.h>
+#include <uchar.h>
 
 #include <openssl/pkcs7.h>
 #include <openssl/ssl.h>
@@ -561,38 +563,35 @@ calculate_pcr8(uint8_t *pcr, eventlog_t *evlog)
  * @param evlog The event log to record the extend operations in
  */
 static int
-calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, char **paths, size_t num_paths)
+calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, char **paths, size_t num_paths)
 {
     int ret = -1;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // Recursively iterate over paths and log and extend all files
-    for (size_t i = 0; i < num_paths; i++) {
-        // Check if path exists
-        struct stat path_stat;
-        ret = stat(paths[i], &path_stat);
-        if (ret) {
-            printf("Path %s does not exist\n", paths[i]);
+    if (cmdline) {
+        // EV_EVENT_TAG kernel commandline (OVMF uses CHAR16)
+        print_data((uint8_t *)cmdline, strlen(cmdline), "cmdline");
+
+        size_t cmdline_len = 0;
+        char16_t *wcmdline = convert_to_char16(cmdline, &cmdline_len);
+        if (!wcmdline) {
+            printf("Failed to convert to wide character string\n");
             return -1;
         }
 
-        // Check if path is directory
-        if (S_ISDIR(path_stat.st_mode)) {
-            DEBUG("Path %s is a directory. Traversing..\n", paths[i]);
-            ret = calculate_paths_recursively(paths[i], pcr, evlog);
-            if (ret) {
-                printf("Failed to calculate ima entries recursively\n");
-                return -1;
-            }
-        } else {
-            char *path = realpath(paths[i], NULL);
-            if (!path) {
-                printf("WARN: Failed to get real path for %s\n", paths[i]);
-                continue;
-            }
-            calculate_path(path, pcr, evlog);
-            free(path);
+        uint8_t hash_ev_event_tag[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_ev_event_tag, (uint8_t *)wcmdline, cmdline_len+2);
+        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_ev_event_tag, cmdline);
+
+        hash_extend(EVP_sha256(), pcr, hash_ev_event_tag, SHA256_DIGEST_LENGTH);
+    }
+
+    if (paths) {
+        ret = calculate_paths(pcr, evlog, paths, num_paths);
+        if (ret) {
+            printf("Failed to calculate paths\n");
+            return ret;
         }
     }
 
@@ -616,6 +615,7 @@ print_usage(const char *progname)
     printf("\t-d,  --driver\t\t\tPath to 3rd party UEFI driver file (multiple possible)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-c,  --config\t\t\tPath to configuration file\n");
+    printf("\t     --cmdline\t\t\tKernel commandline, required for some PCR 9 calculations\n");
     printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
@@ -642,6 +642,7 @@ main(int argc, char *argv[])
     const char *config_file = NULL;
     const char *kernel = NULL;
     const char *ramdisk = NULL;
+    const char *cmdline = NULL;
     const char *ovmf = NULL;
     bool print_event_log = false;
     bool print_summary = false;
@@ -675,6 +676,10 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-k") || !strcmp(argv[0], "--kernel")) && argc >= 2) {
             kernel = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--cmdline") && argc >= 2) {
+            cmdline = argv[1];
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-r") || !strcmp(argv[0], "--ramdisk")) && argc >= 2) {
@@ -789,11 +794,6 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (!paths && contains(pcr_nums, len_pcr_nums, 9)) {
-        printf("Paths to files/folders must be specified for PCR9\n");
-        print_usage(progname);
-        goto out;
-    }
     if (!ovmf && contains(pcr_nums, len_pcr_nums, 0)) {
         printf("OVMF must specified for calculating PCR0\n");
         print_usage(progname);
@@ -818,6 +818,8 @@ main(int argc, char *argv[])
     DEBUG("\tKernel:    %s\n", kernel);
     if (ramdisk) {
         DEBUG("\tInitramfs: %s\n", ramdisk);
+    } if (cmdline) {
+        DEBUG("\tCmdline: %s\n", cmdline);
     }
     DEBUG("\tOVMF: %s\n", ovmf);
     DEBUG("\tEventlog:  %d\n", print_event_log);
@@ -887,7 +889,8 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 9)) {
-        if (calculate_pcr9(pcr[9], &evlog, paths, num_paths)) {
+        printf("Calculating pcr 9 %s\n", cmdline);
+        if (calculate_pcr9(pcr[9], &evlog, cmdline, paths, num_paths)) {
             printf("Failed to calculate event log for PCR 9\n");
             goto out;
         }
