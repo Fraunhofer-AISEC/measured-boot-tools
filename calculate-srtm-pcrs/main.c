@@ -571,8 +571,6 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, char **path
 
     if (cmdline) {
         // EV_EVENT_TAG kernel commandline (OVMF uses CHAR16)
-        print_data((uint8_t *)cmdline, strlen(cmdline), "cmdline");
-
         size_t cmdline_len = 0;
         char16_t *wcmdline = convert_to_char16(cmdline, &cmdline_len);
         if (!wcmdline) {
