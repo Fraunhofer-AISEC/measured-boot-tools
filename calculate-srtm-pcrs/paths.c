@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <libgen.h>
-#include <iconv.h>
 #include <uchar.h>
 
 #include <openssl/evp.h>
@@ -135,34 +134,14 @@ calculate_paths(uint8_t *pcr, eventlog_t *evlog, char **paths, size_t num_paths)
 char16_t *
 convert_to_char16(const char *in, size_t *out_len)
 {
-    iconv_t cd = iconv_open("UTF-16LE", "UTF-8");
-    if (cd == (iconv_t)-1) {
-        perror("iconv_open");
-        return NULL;
+    // TODO Very simple conversion, but for now preferred over
+    // iconv for machines that do not have UTF-16 available
+    size_t olen = strlen(in) * 2 + 2;
+    char16_t *out = (char16_t *)malloc(olen);
+    memset(out, 0x0, sizeof(out));
+    for (size_t i = 0; i < strlen(in) + 1; i++) {
+        out[i] = in[i];
     }
-
-    *out_len = 2 * strlen(in);
-    char16_t *out = (char16_t *)malloc((*out_len + 1) * sizeof(char16_t));
-    if (!out) {
-        perror("Failed to allocate memory\n");
-        return NULL;
-    }
-
-    char *inbuf = (char *)in;
-    char *outbuf = (char *)out;
-    size_t inbytesleft = strlen(in);
-    size_t outbytesleft = *out_len * sizeof(char16_t);
-    size_t result = iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
-    if (result == (size_t)-1) {
-        printf("Failed to convert\n");
-        free(out);
-        iconv_close(cd);
-        return NULL;
-    }
-
-    out[*out_len] = 0;
-
-    iconv_close(cd);
-
+    *out_len = olen;
     return out;
 }
