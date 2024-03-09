@@ -887,7 +887,6 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 9)) {
-        printf("Calculating pcr 9 %s\n", cmdline);
         if (calculate_pcr9(pcr[9], &evlog, cmdline, paths, num_paths)) {
             printf("Failed to calculate event log for PCR 9\n");
             goto out;
