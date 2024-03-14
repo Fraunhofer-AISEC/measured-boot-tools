@@ -17,7 +17,7 @@ ifeq ($(DEBUG_BUILD),y)
 	DEFINES += -DDEBUG_BUILD
 endif
 
-LFLAGS := -pthread -lssl -lcrypto
+LFLAGS := -lcrypto
 
 CSRS := \
 	main.c \
