@@ -18,8 +18,8 @@ print_usage(const char *progname)
 {
     INFO("\nUsage: %s [options...]", progname);
     INFO("\t-h,  --help\t\tPrint help text");
-    INFO("\t-i,  --in <data>[,<data>]\t\
-        The numbers of the PCRs to be parsed as a comma separated list without spaces");
+    INFO("\t-i,  --in <digest>[,<digest>]\t\
+        The digests to be extended in hexadecimal notation");
     INFO("\n");
 }
 
