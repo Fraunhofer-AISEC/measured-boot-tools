@@ -42,13 +42,13 @@
 
 typedef struct {
     uint8_t *acpi_tables;
-    size_t acpi_tables_size;
+    ssize_t acpi_tables_size;
     uint8_t *acpi_rsdp;
-    size_t acpi_rsdp_size;
+    ssize_t acpi_rsdp_size;
     uint8_t *table_loader;
-    size_t table_loader_size;
+    ssize_t table_loader_size;
     uint8_t *tpm_log;
-    size_t tpm_log_size;
+    ssize_t tpm_log_size;
 } pcr1_config_files_t;
 
 volatile bool debug_output = false;
@@ -187,24 +187,36 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/table-loader
-    uint8_t hash_table_loader[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_table_loader, "etc/table-loader");
+    if (cfg->table_loader_size > 0) {
+        uint8_t hash_table_loader[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
+        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_table_loader, "etc/table-loader");
+        hash_extend(EVP_sha256(), pcr, hash_table_loader, SHA256_DIGEST_LENGTH);
+    }
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/rsdp
-    uint8_t hash_acpi_rsdp[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_rsdp, "etc/acpi/rsdp");
+    if (cfg->acpi_rsdp_size > 0) {
+        uint8_t hash_acpi_rsdp[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
+        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_rsdp, "etc/acpi/rsdp");
+        hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
+    }
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
-    uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
+    if (cfg->tpm_log_size > 0) {
+        uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
+        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
+        hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
+    }
 
     // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
-    uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
-    evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables, "etc/acpi/tables");
+    if (cfg->acpi_tables_size > 0) {
+        uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
+        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables, "etc/acpi/tables");
+        hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
+    }
 
     // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
     uint8_t efi_variable_boot[2] = { 0 };
@@ -213,6 +225,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
              sizeof(efi_variable_boot));
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
                  "Hash EFI Variable Boot: Hash(0000)");
+    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
 
     // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
     long len = 0;
@@ -229,6 +242,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     evlog_add(
         evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot2,
         "HASH(090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400)");
+    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot2, SHA256_DIGEST_LENGTH);
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -239,14 +253,6 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     evlog_add(evlog, 1, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
-
-    hash_extend(EVP_sha256(), pcr, hash_table_loader, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
-
-    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot2, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
     ret = 0;
@@ -633,6 +639,17 @@ contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
     return false;
 }
 
+long
+file_size(const char *filename)
+{
+    struct stat st = { 0 };
+    int ret = stat(filename, &st);
+    if (ret < 0) {
+        return -1;
+    }
+    return st.st_size;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -657,7 +674,12 @@ main(int argc, char *argv[])
         .format = FORMAT_TEXT,
         .log = { 0 }
     };
-    pcr1_config_files_t pcr1_cfg = { 0 };
+    pcr1_config_files_t pcr1_cfg = {
+        .acpi_rsdp_size = -1,
+        .acpi_tables_size = -1,
+        .table_loader_size = -1,
+        .tpm_log_size = -1
+     };
 
     argv++;
     argc--;
@@ -738,8 +760,8 @@ main(int argc, char *argv[])
             argv++;
             argc--;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
-            pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
-            if (pcr1_cfg.acpi_rsdp_size == 0) {
+            pcr1_cfg.acpi_rsdp_size = file_size(argv[1]);
+            if (pcr1_cfg.acpi_rsdp_size < 0) {
                 printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
                 goto out;
             }
@@ -747,8 +769,8 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
-            pcr1_cfg.acpi_tables_size = get_file_size(argv[1]);
-            if (pcr1_cfg.acpi_tables_size == 0) {
+            pcr1_cfg.acpi_tables_size = file_size(argv[1]);
+            if (pcr1_cfg.acpi_tables_size < 0) {
                 printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
                 goto out;
             }
@@ -756,8 +778,8 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
-            pcr1_cfg.table_loader_size = get_file_size(argv[1]);
-            if (pcr1_cfg.table_loader_size == 0) {
+            pcr1_cfg.table_loader_size = file_size(argv[1]);
+            if (pcr1_cfg.table_loader_size < 0) {
                 printf("Failed to get file size of table loader file %s\n", argv[1]);
                 goto out;
             }
@@ -765,8 +787,8 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-g") || !strcmp(argv[0], "--tpmlog")) && argc >= 2) {
-            pcr1_cfg.tpm_log_size = get_file_size(argv[1]);
-            if (pcr1_cfg.tpm_log_size == 0) {
+            pcr1_cfg.tpm_log_size = file_size(argv[1]);
+            if (pcr1_cfg.tpm_log_size < 0) {
                 printf("Failed to get file size of TPM log file %s\n", argv[1]);
                 goto out;
             }
@@ -795,22 +817,22 @@ main(int argc, char *argv[])
         goto out;
     }
 
-    if (!pcr1_cfg.acpi_rsdp_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.acpi_rsdp_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file ACPI RSDP must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (!pcr1_cfg.acpi_tables_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.acpi_tables_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file ACPI tables must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (!pcr1_cfg.table_loader_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.table_loader_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file table loader must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (!pcr1_cfg.tpm_log_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.tpm_log_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file TPM log must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
