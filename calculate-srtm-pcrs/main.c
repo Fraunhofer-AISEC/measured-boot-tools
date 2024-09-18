@@ -739,21 +739,37 @@ main(int argc, char *argv[])
             argc--;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
             pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
+            if (pcr1_cfg.acpi_rsdp_size == 0) {
+                printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
+                goto out;
+            }
             pcr1_cfg.acpi_rsdp = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
             pcr1_cfg.acpi_tables_size = get_file_size(argv[1]);
+            if (pcr1_cfg.acpi_tables_size == 0) {
+                printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
+                goto out;
+            }
             pcr1_cfg.acpi_tables = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
             pcr1_cfg.table_loader_size = get_file_size(argv[1]);
+            if (pcr1_cfg.table_loader_size == 0) {
+                printf("Failed to get file size of table loader file %s\n", argv[1]);
+                goto out;
+            }
             pcr1_cfg.table_loader = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-g") || !strcmp(argv[0], "--tpmlog")) && argc >= 2) {
             pcr1_cfg.tpm_log_size = get_file_size(argv[1]);
+            if (pcr1_cfg.tpm_log_size == 0) {
+                printf("Failed to get file size of TPM log file %s\n", argv[1]);
+                goto out;
+            }
             pcr1_cfg.tpm_log = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
@@ -779,10 +795,23 @@ main(int argc, char *argv[])
         goto out;
     }
 
-    if ((!pcr1_cfg.acpi_rsdp_size || !pcr1_cfg.acpi_tables_size ||
-            !pcr1_cfg.table_loader_size || !pcr1_cfg.tpm_log_size) &&
-            contains(pcr_nums, len_pcr_nums, 1)) {
-        printf("PCR1 Config files must be specified to calculate PCR1\n");
+    if (!pcr1_cfg.acpi_rsdp_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+        printf("PCR1 Config file ACPI RSDP must be specified to calculate PCR1\n");
+        print_usage(progname);
+        goto out;
+    }
+    if (!pcr1_cfg.acpi_tables_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+        printf("PCR1 Config file ACPI tables must be specified to calculate PCR1\n");
+        print_usage(progname);
+        goto out;
+    }
+    if (!pcr1_cfg.table_loader_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+        printf("PCR1 Config file table loader must be specified to calculate PCR1\n");
+        print_usage(progname);
+        goto out;
+    }
+    if (!pcr1_cfg.tpm_log_size  && contains(pcr_nums, len_pcr_nums, 1)) {
+        printf("PCR1 Config file TPM log must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
