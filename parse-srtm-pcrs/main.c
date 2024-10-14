@@ -206,11 +206,17 @@ main(int argc, char *argv[])
             printf("[");
         }
         for (size_t i = 0; i < len_pcr_nums; i++) {
+            // Determine if this is the last entry to remove semicolon
+            bool last = true;
+            for (size_t j = i + 1; j < len_pcr_nums; j++) {
+                if (cb_data.eventlog[pcr_nums[j]]) {
+                    last = false;
+                }
+            }
             if (!cb_data.eventlog[pcr_nums[i]]) {
                 continue;
             }
-            // Remove last colon on final event log entry
-            if (i == (len_pcr_nums-1)) {
+            if (last) {
                 cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 2] = '\n';
                 cb_data.eventlog[pcr_nums[i]][strlen(cb_data.eventlog[pcr_nums[i]]) - 1] = '\0';
             }
