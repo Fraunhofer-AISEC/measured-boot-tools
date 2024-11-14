@@ -426,7 +426,7 @@ typedef struct {
 #define EFI_HOB_HANDOFF_TABLE_VERSION  0x0009
 
 int
-measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain)
+measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_pei_path)
 {
     // Find PEIFV (header)
     uint8_t *peifv = ((uint8_t *)fvmain + 0x80);
@@ -434,16 +434,36 @@ measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain)
 
     sha256(hash, peifv, peifv_size);
 
+    if (dump_pei_path) {
+        FILE *f = fopen(dump_pei_path, "wb");
+        if (!f) {
+            printf("Failed to write PEIFV to %s\n", dump_pei_path);
+            return -1;
+        }
+        fwrite(peifv, peifv_size, 1, f);
+        printf("Wrote PEIFV\n");
+    }
+
     return 0;
 }
 
-int measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain)
+int measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_dxe_path)
 {
     // Find DXE (header), DXE is located after the 896 KB of PEI
     uint8_t *dxefv = ((uint8_t *)fvmain + 0x90 + 896 * 1024);
     size_t dxefv_size = 0xD00000;
 
     sha256(hash, dxefv, dxefv_size);
+
+    if (dump_dxe_path) {
+        FILE *f = fopen(dump_dxe_path,"wb");
+        if (!f) {
+            printf("Failed to write DXEFV to %s\n", dump_dxe_path);
+            return -1;
+        }
+        fwrite(dxefv, dxefv_size, 1, f);
+        printf("Wrote DXEFV\n");
+    }
 
     return 0;
 }

@@ -63,7 +63,8 @@ volatile bool debug_output = false;
  * @param ovmf_file The path to the OVMF.fd file that should be used for the calculations
  */
 static int
-calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
+calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const char *dump_pei_path,
+    const char *dump_dxe_path)
 {
     int ret = -1;
     uint8_t *fvmain_compact_buf = NULL;
@@ -123,7 +124,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
 
     // Measure PEIFV
     uint8_t peifv_hash[SHA256_DIGEST_LENGTH];
-    ret = measure_peifv(peifv_hash, fvmain);
+    ret = measure_peifv(peifv_hash, fvmain, dump_pei_path);
     if (ret) {
         printf("Failed to measure PEIFV\n");
         goto out;
@@ -132,7 +133,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file)
 
     // Measure DXEFV
     uint8_t dxefv_hash[SHA256_DIGEST_LENGTH];
-    ret = measure_dxefv(dxefv_hash, fvmain);
+    ret = measure_dxefv(dxefv_hash, fvmain, dump_dxe_path);
     if (ret) {
         printf("Failed to measure DXEFV\n");
         goto out;
@@ -624,7 +625,9 @@ print_usage(const char *progname)
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
     printf("\t-g,  --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
-    printf("\t     --Path\t\t\t to folder or file to be extended into PCR9 (multiple possible)\n");
+    printf("\t     --path\t\t\t Path to folder or file to be extended into PCR9 (multiple possible)\n");
+    printf("\t     --dumppei\t\t\t Optional path to folder to dump the PEIFV that was hashed\n");
+    printf("\t     --dumpdxe\t\t\t Optional path to folder to dump the DXEFV that was hashed\n");
     printf("\n");
 }
 
@@ -659,6 +662,8 @@ main(int argc, char *argv[])
     const char *ramdisk = NULL;
     const char *cmdline = NULL;
     const char *ovmf = NULL;
+    const char *dump_pei_path = NULL;
+    const char *dump_dxe_path = NULL;
     bool print_event_log = false;
     bool print_summary = false;
     bool print_aggregate = false;
@@ -739,6 +744,14 @@ main(int argc, char *argv[])
             print_aggregate = true;
             argv++;
             argc--;
+        } else if (!strcmp(argv[0], "--dumppei")) {
+            dump_pei_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--dumpdxe")) {
+            dump_dxe_path = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if ((!strcmp(argv[0], "-p") || !strcmp(argv[0], "--pcrs")) && argc >= 2) {
             pcr_str = (char *)malloc(strlen(argv[1]) + 1);
             if (!pcr_str) {
@@ -884,7 +897,7 @@ main(int argc, char *argv[])
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
 
     if (contains(pcr_nums, len_pcr_nums, 0)) {
-        if (calculate_pcr0(pcr[0], &evlog, ovmf)) {
+        if (calculate_pcr0(pcr[0], &evlog, ovmf, dump_pei_path, dump_dxe_path)) {
             printf("Failed to calculate event log for PCR 0\n");
             goto out;
         }
