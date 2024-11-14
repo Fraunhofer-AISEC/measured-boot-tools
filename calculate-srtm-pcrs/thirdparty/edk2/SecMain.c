@@ -451,7 +451,7 @@ int measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const cha
 {
     // Find DXE (header), DXE is located after the 896 KB of PEI
     uint8_t *dxefv = ((uint8_t *)fvmain + 0x90 + 896 * 1024);
-    size_t dxefv_size = 0xD00000;
+    size_t dxefv_size = 0xE80000;
 
     sha256(hash, dxefv, dxefv_size);
 
