@@ -18,6 +18,8 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <openssl/sha.h>
+
 #include "string.h"
 
 #include "GlobalVariable.h"

@@ -13,14 +13,16 @@
 #include "common.h"
 #include "hash.h"
 
+volatile bool debug_output = false;
+
 static void
 print_usage(const char *progname)
 {
-    INFO("\nUsage: %s [options...]", progname);
-    INFO("\t-h,  --help\t\tPrint help text");
-    INFO("\t-i,  --in <digest>[,<digest>]\t\
+    printf("\nUsage: %s [options...]", progname);
+    printf("\t-h,  --help\t\tPrint help text");
+    printf("\t-i,  --in <digest>[,<digest>]\t\
         The digests to be extended in hexadecimal notation");
-    INFO("\n");
+    printf("\n");
 }
 
 int
@@ -67,7 +69,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else {
-            ERROR("Invalid Option %s or argument missing\n", argv[0]);
+            printf("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
             goto out;
         }

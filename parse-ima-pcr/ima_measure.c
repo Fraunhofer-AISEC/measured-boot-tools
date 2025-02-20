@@ -102,51 +102,11 @@ get_module_name(uint8_t *buffer, size_t len)
     // Ensure terminating null
     char *str = calloc(1, len + 1);
     if (!str) {
-        ERROR("Failed to allocate memory for module name");
+        printf("Failed to allocate memory for module name");
         return NULL;
     }
     memcpy(str, buffer, len);
     return str;
-}
-
-static void
-print_data(uint8_t *buf, size_t len, const char *info)
-{
-    uint32_t l = 2 * len + strlen(info) + 3;
-    char s[l];
-    uint32_t count = 0;
-    if (info) {
-        count += snprintf(s + count, sizeof(s) - count, "%s: ", info);
-    }
-    for (uint32_t i = 0; i < len; i++) {
-        // Print the buffer as double-digit hex numbers op to a maximum
-        // length of sizeof(s)
-        count += snprintf(s + count, sizeof(s) - count, "%02x", buf[i]);
-    }
-    printf("%s", s);
-}
-
-static char *
-convert_bin_to_hex(const uint8_t *bin, int length)
-{
-    // We need two chars per byte plus an additional \0 terminator
-    // to convert the buffer to a hex string
-    size_t len = length * (size_t)2;
-    len = len * sizeof(char);
-    len++;
-    char *hex = calloc(1, len);
-    if (!hex) {
-        ERROR("Failed to allocate memory for bin to hex");
-        return NULL;
-    }
-
-    for (int i = 0; i < length; ++i) {
-        // snprintf additionally writes a '0' byte,
-        // to write two actual characters we need a maximum size of three
-        snprintf(hex + i * 2, 3, "%.2x", bin[i]);
-    }
-
-    return hex;
 }
 
 static int
@@ -190,7 +150,7 @@ get_template_data(struct event *template)
 
     template_fmt = strdup(template->ima_template_desc->fmt);
     if (!template_fmt) {
-        ERROR("Failed to allocate memory for template_fmt");
+        printf("Failed to allocate memory for template_fmt");
         return NULL;
     }
 
@@ -198,7 +158,7 @@ get_template_data(struct event *template)
     for (i = 0; (f = strsep(&template_fmt_ptr, "|")) != NULL; i++) {
         uint32_t field_len = 0;
 
-        TRACE("field is: %s", f);
+        DEBUG("field is: %s", f);
 
         if (is_ima_template && strcmp(f, "d") == 0)
             field_len = SHA_DIGEST_LENGTH;
@@ -217,24 +177,24 @@ get_template_data(struct event *template)
                 digest_len = field_len - algo_len;
 
             } else if (strncmp(f, "sig", 3) == 0) {
-                print_data(digest, digest_len, "Digest");
+                print_data_no_lf(digest, digest_len, "Digest");
 
                 if (template->template_data_len <= (uint32_t)offset) {
-                    WARN("%s: No signature present", f);
+                    printf("%s: No signature present", f);
                     continue;
                 }
 
                 uint8_t *field_buf = template->template_data + offset;
 
                 if (*field_buf != 0x03) {
-                    WARN("%s: No signature present", f);
+                    printf("%s: No signature present", f);
                     continue;
                 }
 
                 struct signature_v2_hdr *sig =
                     (struct signature_v2_hdr *)(template->template_data + offset);
 
-                print_data(sig->sig, field_len - sizeof(struct signature_v2_hdr), "Signature");
+                print_data_no_lf(sig->sig, field_len - sizeof(struct signature_v2_hdr), "Signature");
 
             } else if (strncmp(f, "n-ng", 4) == 0) {
                 free(template_fmt);
@@ -243,7 +203,7 @@ get_template_data(struct event *template)
 
         } else if (strncmp(template->name, "ima-modsig", 10) == 0) {
             if (strncmp(f, "d-ng", 4) == 0) {
-                TRACE("Field %s not evaluated at the moment", f);
+                DEBUG("Field %s not evaluated at the moment", f);
 
             } else if (strncmp(f, "d-modsig", 8) == 0) {
                 int algo_len = strlen((char *)template->template_data + offset) + 1;
@@ -255,11 +215,11 @@ get_template_data(struct event *template)
                 sig_info =
                     modsig_parse_new((const char *)(template->template_data + offset), field_len);
                 if (!sig_info) {
-                    ERROR("Failed to parse module signature");
+                    printf("Failed to parse module signature");
                     continue;
                 }
 
-                print_data(sig_info->sig, sig_info->sig_len, "Signature");
+                print_data_no_lf(sig_info->sig, sig_info->sig_len, "Signature");
 
                 modsig_free(sig_info);
 
@@ -279,7 +239,7 @@ get_template_data(struct event *template)
                 return get_module_name(template->template_data + offset, field_len);
             }
         } else {
-            WARN("Unknown IMA template %s", template->name);
+            printf("Unknown IMA template %s", template->name);
         }
 
         offset += field_len;
@@ -345,11 +305,11 @@ ima_parse_binary_runtime_measurements(uint8_t *buf, size_t size)
     size_t remain = size;
     int ret = 0;
 
-    TRACE("Parsing IMA runtime measurements, bufsize %lu..", size);
+    DEBUG("Parsing IMA runtime measurements, bufsize %lu..", size);
 
     bool first = true;
     while (!buf_read(&template.header, &ptr, sizeof(template.header), &remain)) {
-        TRACE("PCR %02d Measurement:", template.header.pcr);
+        DEBUG("PCR %02d Measurement:", template.header.pcr);
 
         if (template.header.name_len > TCG_EVENT_NAME_LEN_MAX) {
             printf("template header name too long: %d\n", template.header.name_len);
@@ -360,17 +320,17 @@ ima_parse_binary_runtime_measurements(uint8_t *buf, size_t size)
 
         memset(template.name, 0, sizeof(template.name));
         buf_read(template.name, &ptr, template.header.name_len, &remain);
-        TRACE("Template: %s", template.name);
+        DEBUG("Template: %s", template.name);
 
         if (read_template_data(&template, &ptr, &remain) < 0) {
-            ERROR("Failed to read measurement entry %s", template.name);
+            printf("Failed to read measurement entry %s", template.name);
             ret = -1;
             free(template.template_data);
             goto clean;
         }
 
         if (verify_template_hash(&template) != 0) {
-            ERROR("Failed to verify template hash for %s", template.name);
+            printf("Failed to verify template hash for %s", template.name);
             ret = -1;
             free(template.template_data);
             goto clean;
@@ -378,7 +338,7 @@ ima_parse_binary_runtime_measurements(uint8_t *buf, size_t size)
 
         char *module_name = get_template_data(&template);
         if (!module_name) {
-            ERROR("Failed to parse measurement entry %s", template.name);
+            printf("Failed to parse measurement entry %s", template.name);
             ret = -1;
             free(template.template_data);
             goto clean;

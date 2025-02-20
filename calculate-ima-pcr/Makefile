@@ -19,10 +19,16 @@ endif
 
 LFLAGS := -lcrypto
 
+ISRCS := \
+	./ \
+	../common/
+
 CSRS := \
 	main.c \
-	common.c \
-	hash.c \
+	../common/common.c \
+	../common/hash.c \
+
+IFLAGS := $(ISRCS:%=-I%)
 
 .PHONY: all
 all: calculate-ima-pcr

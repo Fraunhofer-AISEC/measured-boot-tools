@@ -41,6 +41,8 @@
 
 #define BINARY_RUNTIME_MEASUREMENTS "/sys/kernel/security/ima/binary_runtime_measurements"
 
+volatile bool debug_output = false;
+
 static uint8_t *
 ml_get_ima_list_new(const char *file, size_t *len)
 {
@@ -68,13 +70,13 @@ ml_get_ima_list_new(const char *file, size_t *len)
         }
         if (ret < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                TRACE("Reading from fd %d: Blocked, retrying...", fd);
+                DEBUG("Reading from fd %d: Blocked, retrying...", fd);
                 continue;
             }
             free(buf);
             buf = NULL;
             l = 0;
-            ERROR("Failed to read file %s", file);
+            printf("Failed to read file %s", file);
             goto out;
         }
         l++;
@@ -91,40 +93,40 @@ print_usage(const char *progname)
 {
     printf("\nUsage: %s [options...]\n", progname);
     printf("\t-m,  --measurements <file>\t\tPath to IMA measurements file\n");
+    printf("\t     --verbose\t\t\tPrint verbose debug output\n");
     printf("\n");
 }
 
 int
 main(int argc, char *argv[])
 {
-    const char *ima_file = NULL;
+    const char *ima_file = BINARY_RUNTIME_MEASUREMENTS;
     const char *progname = argv[0];
     argv++;
     argc--;
 
-    DEBUG("Parsing IMA Measurement list");
-
-    if (argc == 0) {
-        ima_file = BINARY_RUNTIME_MEASUREMENTS;
-    } else if (argc == 2) {
-        if (!strcmp(argv[0], "-m") || !strcmp(argv[0], "--measurements")) {
+    while (argc > 0) {
+        if ((!strcmp(argv[0], "-m") || !strcmp(argv[0], "--measurements")) && argc >= 2) {
             ima_file = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "-v") || !strcmp(argv[0], "--verbose")) {
+            debug_output = true;
+            argv++;
+            argc--;
         } else {
-            ERROR("Unknown argument %s\n", argv[0]);
+            printf("Invalid option %s or argument missing\n", argv[0]);
             print_usage(progname);
             return -1;
         }
-    } else {
-        print_usage(progname);
-        return -1;
     }
+
+    DEBUG("Parsing IMA Measurement list");
 
     size_t size = 0;
     uint8_t *data = ml_get_ima_list_new(ima_file, &size);
     if (!data) {
-        ERROR("Failed to retrieve measurements (if reading from /sys, root is required)\n");
+        printf("Failed to retrieve measurements (if reading from /sys, root is required)\n");
         return -1;
     }
 

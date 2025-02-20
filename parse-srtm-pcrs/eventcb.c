@@ -212,7 +212,7 @@ get_algo_str(TPM2_ALG_ID id)
     case TPM2_ALG_SHA512:
         return "sha512";
     default:
-        ERROR("Algorithm ID %u not supported\n", id);
+        printf("Algorithm ID %u not supported\n", id);
     }
     return "unknown";
 }
@@ -243,7 +243,7 @@ event_digest_cb(TCG_DIGEST2 const *digest, size_t size, void *data_in)
     }
 
     if (active_pcr >= MAX_PCRS) {
-        ERROR("Active PCR %d invalid\n", active_pcr);
+        printf("Active PCR %d invalid\n", active_pcr);
         return false;
     }
     if (digest->AlgorithmId == TPM2_ALG_SHA256) {

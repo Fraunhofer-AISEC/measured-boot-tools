@@ -30,6 +30,20 @@
 #include "common.h"
 #include "modsig.h"
 
+static unsigned char *
+memdup(const unsigned char *mem, size_t size)
+{
+    if (!mem) {
+        return NULL;
+    }
+    unsigned char *p = calloc(1, size);
+    if (!p) {
+        return NULL;
+    }
+    memcpy(p, mem, size);
+    return p;
+}
+
 static char *
 x509_get_common_name_new(X509_NAME *name)
 {
@@ -49,7 +63,7 @@ x509_get_common_name_new(X509_NAME *name)
     }
 
     if (!found) {
-        ERROR("Failed to convert X509 name to string");
+        printf("Failed to convert X509 name to string");
         return NULL;
     }
 

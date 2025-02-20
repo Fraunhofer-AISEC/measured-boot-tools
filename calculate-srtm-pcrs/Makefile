@@ -16,26 +16,27 @@ LFLAGS := -lcrypto
 
 ISRCS := \
 	./ \
-	thirdparty/LzmaCustomDecompressLib \
-	thirdparty/LzmaCustomDecompressLib/Sdk \
-	thirdparty/LzmaCustomDecompressLib/Sdk/C \
-	thirdparty/edk2 \
+	../thirdparty/LzmaCustomDecompressLib \
+	../thirdparty/LzmaCustomDecompressLib/Sdk \
+	../thirdparty/LzmaCustomDecompressLib/Sdk/C \
+	../thirdparty/edk2 \
+	../common
 
 CSRS := \
-	guid.c \
 	main.c \
-	config.c \
-	hash.c \
 	eventlog.c \
 	paths.c \
-	thirdparty/edk2/MeasureBootPeCoff.c \
-	thirdparty/edk2/SecMain.c \
-	thirdparty/edk2/Tcg2Dxe.c \
-	thirdparty/LzmaCustomDecompressLib/LzmaDecompress.c \
-	thirdparty/LzmaCustomDecompressLib/Sdk/C/Bra86.c \
-	thirdparty/LzmaCustomDecompressLib/Sdk/C/LzFind.c \
-	thirdparty/LzmaCustomDecompressLib/Sdk/C/LzmaDec.c \
-	common.c \
+	../thirdparty/edk2/MeasureBootPeCoff.c \
+	../thirdparty/edk2/SecMain.c \
+	../thirdparty/edk2/Tcg2Dxe.c \
+	../thirdparty/LzmaCustomDecompressLib/LzmaDecompress.c \
+	../thirdparty/LzmaCustomDecompressLib/Sdk/C/Bra86.c \
+	../thirdparty/LzmaCustomDecompressLib/Sdk/C/LzFind.c \
+	../thirdparty/LzmaCustomDecompressLib/Sdk/C/LzmaDec.c \
+	../common/common.c \
+	../common/guid.c \
+	../common/hash.c \
+	../common/kernel_config.c \
 
 IFLAGS := $(ISRCS:%=-I%)
 

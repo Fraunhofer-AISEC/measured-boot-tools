@@ -4,29 +4,32 @@ DEBUG_BUILD ?= n
 LOCAL_CFLAGS := -g -std=gnu99 -Icommon/ -ftrapv
 LOCAL_CFLAGS += -Wall -Wextra -Wcast-align -Wformat -Wformat-security
 
-ifeq ($(DEBUG_BUILD),y)
-    LOCAL_CFLAGS += -fsanitize=address -static-libasan -fsanitize=undefined -fsanitize-recover=address
-endif
-
 DEFINES :=
 
-INC_DIRS :=
+ifeq ($(DEBUG_BUILD),y)
+    LOCAL_CFLAGS += -fsanitize=address -static-libasan -fsanitize=undefined -fsanitize-recover=address
+	DEFINES += -DDEBUG_BUILD
+endif
 
 LFLAGS := -lcrypto
 
+ISRCS := \
+	./ \
+	../common \
+
 CSRS := \
 	main.c \
-	hash.c \
-	common.c \
+	../common/hash.c \
+	../common/common.c \
 
-IFLAGS := $(INC_DIRS:%=-I%)
+IFLAGS := $(ISRCS:%=-I%)
 
 .PHONY: all
 all: pcr-extend
 
 .PHONY: pcr-extend
 pcr-extend:
-	$(CC) $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) -o pcr-extend $(CSRS) $(LFLAGS)
+	$(CC) $(DEFINES) $(LOCAL_CFLAGS) $(IFLAGS) $(CSRS) $(LFLAGS) -o pcr-extend
 
 .PHONY: install
 install:

@@ -12,6 +12,7 @@ DEFINES :=
 
 INC_DIRS := \
 	./ \
+	../common \
 	thirdparty/tpm2-tools \
 	thirdparty/tss2 \
 	thirdparty
@@ -21,8 +22,8 @@ LFLAGS := -lcrypto
 CSRS := \
 	main.c \
 	eventcb.c \
-	hash.c \
-	common.c \
+	../common/hash.c \
+	../common/common.c \
 	thirdparty/tpm2-tools/tpm2_eventlog.c \
 	thirdparty/tpm2-tools/tpm2_alg_util.c \
 

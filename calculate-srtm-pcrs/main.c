@@ -32,11 +32,9 @@
 
 #include "common.h"
 #include "hash.h"
-#include "config.h"
+#include "kernel_config.h"
 #include "eventlog.h"
 #include "paths.h"
-
-
 
 #define MAX_PCRS 24
 
@@ -818,7 +816,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else {
-            printf("Invalid Option %s or argument missing\n", argv[0]);
+            printf("Invalid option %s or argument missing\n", argv[0]);
             print_usage(progname);
             goto out;
         }

@@ -56,18 +56,15 @@ print_data_ext(uint8_t *buf, uint32_t len, const char *Label)
     printf("\n");
 }
 
-unsigned char *
-memdup(const unsigned char *mem, size_t size)
+void
+print_data_debug(const uint8_t *buf, size_t len, const char *info)
 {
-    if (!mem) {
-        return NULL;
+    if (info)
+        DEBUG("%s: ", info);
+    for (size_t i = 0; i < len; i++) {
+        DEBUG("%02X", buf[i]);
     }
-    unsigned char *p = calloc(1, size);
-    if (!p) {
-        return NULL;
-    }
-    memcpy(p, mem, size);
-    return p;
+    DEBUG("\n");
 }
 
 long
@@ -146,4 +143,59 @@ read_file(uint8_t **buf, uint64_t *size, const char *filename)
     *size = file_size;
 
     return 0;
+}
+
+int
+convert_hex_to_bin(const char *in, size_t inlen, uint8_t *out, size_t outlen)
+{
+    ASSERT(inlen >= 2);
+
+    char *pos = (char *)in;
+    size_t len = inlen;
+    if (strncmp("0X", in, 2) == 0) {
+        pos += 2;
+        len -= 2;
+    }
+    if ((len % 2) != 0) {
+        return -1;
+    }
+    if (outlen != (len / 2)) {
+        return -2;
+    }
+    for (size_t i = 0; i < outlen; i++) {
+        if ((uint8_t)*pos < 0x30 || (uint8_t)*pos > 0x66 ||
+            ((uint8_t)*pos > 0x39 && (uint8_t)*pos < 0x40) ||
+            ((uint8_t)*pos > 0x46 && (uint8_t)*pos < 0x61) || (uint8_t) * (pos + 1) < 0x30 ||
+            (uint8_t) * (pos + 1) > 0x66 ||
+            ((uint8_t) * (pos + 1) > 0x39 && (uint8_t) * (pos + 1) < 0x40) ||
+            ((uint8_t) * (pos + 1) > 0x46 && (uint8_t) * (pos + 1) < 0x61)) {
+            return -3;
+        }
+        sscanf(pos, "%2hhx", &out[i]);
+        pos += 2;
+    }
+    return 0;
+}
+
+char *
+convert_bin_to_hex(const uint8_t *bin, int length)
+{
+    // We need two chars per byte plus an additional \0 terminator
+    // to convert the buffer to a hex string
+    size_t len = length * (size_t)2;
+    len = len * sizeof(char);
+    len++;
+    char *hex = calloc(1, len);
+    if (!hex) {
+        printf("Failed to allocate memory for bin to hex");
+        return NULL;
+    }
+
+    for (int i = 0; i < length; ++i) {
+        // snprintf additionally writes a '0' byte,
+        // to write two actual characters we need a maximum size of three
+        snprintf(hex + i * 2, 3, "%.2x", bin[i]);
+    }
+
+    return hex;
 }
