@@ -19,12 +19,18 @@ endif
 
 LFLAGS := -pthread -lssl -lcrypto
 
+ISRCS := \
+	./ \
+	../common
+
 CSRS := \
 	main.c \
-	hash.c \
 	ima_measure.c \
 	modsig.c \
-	common.c \
+	../common/common.c \
+	../common/hash.c \
+
+IFLAGS := $(ISRCS:%=-I%)
 
 .PHONY: all
 all: parse-ima-pcr

@@ -19,6 +19,8 @@
 
 #define BIOS_MEASUREMENTS "/sys/kernel/security/tpm0/binary_bios_measurements"
 
+volatile bool debug_output = false;
+
 static int
 read_file_chunk(FILE *f, uint8_t *buf, size_t len, size_t *out_len)
 {
@@ -92,15 +94,16 @@ out:
 static void
 print_usage(const char *progname)
 {
-    INFO("\nUsage: %s [options...]", progname);
-    INFO("\t-h,  --help\t\tPrint help text");
-    INFO("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
-    INFO("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces");
-    INFO("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs");
-    INFO("\t-s,  --summary\t\tPrint the final extended PCR values");
-    INFO("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs");
-    INFO("\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
-    INFO("\n");
+    printf("\nUsage: %s [options...]", progname);
+    printf("\t-h,  --help\t\tPrint help text");
+    printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
+    printf("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces");
+    printf("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs");
+    printf("\t-s,  --summary\t\tPrint the final extended PCR values");
+    printf("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs");
+    printf("\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
+    printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
+    printf("\n");
 }
 
 int
@@ -148,7 +151,7 @@ main(int argc, char *argv[])
             } else if (!strcmp(argv[1], "text")) {
                 format = FORMAT_TEXT;
             } else {
-                ERROR("Unknown format '%s'\n", argv[1]);
+                printf("Unknown format '%s'\n", argv[1]);
                 print_usage(progname);
                 goto out;
             }
@@ -179,15 +182,19 @@ main(int argc, char *argv[])
             strncpy(input_file, argv[1], strlen(argv[1]) + 1);
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "-v") || !strcmp(argv[0], "--verbose")) {
+            debug_output = true;
+            argv++;
+            argc--;
         } else {
-            ERROR("Invalid Option %s or argument missing\n", argv[0]);
+            printf("Invalid Option %s or argument missing\n", argv[0]);
             print_usage(progname);
             goto out;
         }
     }
 
     if (len_pcr_nums == 0) {
-        WARN("No PCRs specified, nothing todo\n");
+        printf("No PCRs specified, nothing todo\n");
         print_usage(progname);
         goto out;
     }
@@ -197,7 +204,7 @@ main(int argc, char *argv[])
     cb_data.pcr_nums = pcr_nums;
 
     if (tpm_parse_eventlog(&cb_data, input_file ? input_file : BIOS_MEASUREMENTS) < 0) {
-        ERROR("Failed to parse eventlog\n");
+        printf("Failed to parse eventlog\n");
         goto out;
     }
 

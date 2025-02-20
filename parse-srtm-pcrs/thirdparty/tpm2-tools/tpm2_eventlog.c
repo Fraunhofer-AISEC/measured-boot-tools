@@ -12,6 +12,9 @@
 #include "tpm2_eventlog.h"
 #include "eventcb.h"
 
+#undef UNUSED
+#define UNUSED(x) (void)x
+
 bool digest2_accumulator_callback(TCG_DIGEST2 const *digest, size_t size,
                                   void *data){
 

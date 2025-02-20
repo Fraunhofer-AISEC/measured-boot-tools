@@ -22,7 +22,7 @@
 #include "SecMain.h"
 
 #include "common.h"
-#include "config.h"
+#include "kernel_config.h"
 
 static char *
 trim(char *str)

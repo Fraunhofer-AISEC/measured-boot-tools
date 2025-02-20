@@ -138,7 +138,7 @@ convert_to_char16(const char *in, size_t *out_len)
     // iconv for machines that do not have UTF-16 available
     size_t olen = strlen(in) * 2 + 2;
     char16_t *out = (char16_t *)malloc(olen);
-    memset(out, 0x0, sizeof(out));
+    memset(out, 0x0, olen);
     for (size_t i = 0; i < strlen(in) + 1; i++) {
         out[i] = in[i];
     }
