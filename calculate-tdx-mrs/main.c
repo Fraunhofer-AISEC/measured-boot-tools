@@ -342,7 +342,7 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file)
 
     uint8_t hash_ev_event_tag[SHA384_DIGEST_LENGTH];
     hash_buf(EVP_sha384(), hash_ev_event_tag, (uint8_t *)wcmdline, cmdline_len);
-    evlog_add(evlog, INDEX_RTMR3, "EV_EVENT_TAG", hash_ev_event_tag, cmdline_file);
+    evlog_add(evlog, INDEX_RTMR2, "EV_EVENT_TAG", hash_ev_event_tag, cmdline_file);
 
     hash_extend(EVP_sha384(), mr, hash_ev_event_tag, SHA384_DIGEST_LENGTH);
 
