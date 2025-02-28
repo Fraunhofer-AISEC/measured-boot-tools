@@ -71,8 +71,7 @@ calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file)
     uint8_t *ovmf_buf = NULL;
     uint64_t ovmf_size = 0;
     ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
-    if (ret != 0) {
-        printf("Failed to load %s\n", ovmf_file);
+    if (ret) {
         goto out;
     }
 
@@ -133,7 +132,7 @@ calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
     uint8_t *ovmf_buf = NULL;
     uint64_t ovmf_size = 0;
     ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
-    if (ret != 0) {
+    if (ret) {
         printf("Failed to load %s\n", ovmf_file);
         goto out;
     }
@@ -250,7 +249,6 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, config_
 
     ret = LoadPeImage(&kernel_buf, &kernel_size, kernel_file);
     if (ret != 0) {
-        printf("Failed to load kernel image %s\n", kernel_file);
         goto out;
     }
 
@@ -325,6 +323,9 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file)
     uint8_t *cmdline_buf;
     size_t cmdline_size = 0;
     ret = read_file(&cmdline_buf, &cmdline_size, cmdline_file);
+    if (ret) {
+        return -1;
+    }
     DEBUG("cmdline size: %ld\n", cmdline_size);
 
     uint8_t cmdline_buf2[cmdline_size + 1];
@@ -449,7 +450,7 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
             rtmr0_cfg.acpi_rsdp_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.acpi_rsdp_size < 0) {
+            if (rtmr0_cfg.acpi_rsdp_size <= 0) {
                 printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
                 goto out;
             }
@@ -458,7 +459,7 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
             rtmr0_cfg.acpi_tables_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.acpi_tables_size < 0) {
+            if (rtmr0_cfg.acpi_tables_size <= 0) {
                 printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
                 goto out;
             }
@@ -467,7 +468,7 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
             rtmr0_cfg.table_loader_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.table_loader_size < 0) {
+            if (rtmr0_cfg.table_loader_size <= 0) {
                 printf("Failed to get file size of table loader file %s\n", argv[1]);
                 goto out;
             }
