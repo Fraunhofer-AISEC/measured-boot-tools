@@ -399,6 +399,23 @@ print_usage(const char *progname)
     printf("\n");
 }
 
+static bool
+last_entry_json(eventlog_t *evlog, size_t index)
+{
+    if (evlog->format != FORMAT_JSON) {
+        return false;
+    }
+    if (index == MR_LEN - 1) {
+        return true;
+    }
+    for (size_t i = index + 1; i < MR_LEN; i++) {
+        if (evlog->log[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -612,7 +629,7 @@ main(int argc, char *argv[])
                 continue;
             }
             // Remove last colon on final event log entry if format is json
-            if ((evlog.format == FORMAT_JSON) && (i == (MR_LEN)-1)) {
+            if (last_entry_json(&evlog, i)) {
                 evlog.log[i][strlen(evlog.log[i]) - 2] = ']';
                 evlog.log[i][strlen(evlog.log[i]) - 1] = '\0';
             }
