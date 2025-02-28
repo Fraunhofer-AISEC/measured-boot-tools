@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <openssl/evp.h>
+
 // https://github.com/torvalds/linux/blob/master/Documentation/x86/boot.rst
 typedef enum __attribute__ ((__packed__))
 {
@@ -47,4 +49,4 @@ int
 LoadPeImage (uint8_t **buf, uint64_t *size, const char *filename);
 
 EFI_STATUS
-MeasurePeImage (uint8_t *hash, const uint8_t *buf, const UINTN buf_size);
+MeasurePeImage (const EVP_MD *md, uint8_t *hash, const uint8_t *buf, const UINTN buf_size);

@@ -101,7 +101,8 @@ print_usage(const char *progname)
     printf("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs");
     printf("\t-s,  --summary\t\tPrint the final extended PCR values");
     printf("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs");
-    printf("\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
+    printf(
+        "\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
     printf("\n");
 }

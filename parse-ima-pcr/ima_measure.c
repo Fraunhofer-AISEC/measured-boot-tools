@@ -194,7 +194,8 @@ get_template_data(struct event *template)
                 struct signature_v2_hdr *sig =
                     (struct signature_v2_hdr *)(template->template_data + offset);
 
-                print_data_no_lf(sig->sig, field_len - sizeof(struct signature_v2_hdr), "Signature");
+                print_data_no_lf(sig->sig, field_len - sizeof(struct signature_v2_hdr),
+                                 "Signature");
 
             } else if (strncmp(f, "n-ng", 4) == 0) {
                 free(template_fmt);

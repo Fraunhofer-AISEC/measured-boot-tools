@@ -20,7 +20,7 @@
 #include "hash.h"
 
 /* converting byte buffer to hex string requires 2x, plus 1 for '\0' */
-#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count) * 2 + 1)
+#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count)*2 + 1)
 #define EVENT_BUF_MAX BYTES_TO_HEX_STRING_SIZE(1024)
 #define DIGEST_HEX_STRING_MAX BYTES_TO_HEX_STRING_SIZE(TPM2_MAX_DIGEST_BUFFER)
 #define MAX_PCRS 24

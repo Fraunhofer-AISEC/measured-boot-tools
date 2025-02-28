@@ -35,10 +35,13 @@ print_usage(const char *progname)
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-t,  --tpmpcr [num]\t\tIMA PCR (default: 10\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
-    printf("\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
+    printf(
+        "\t-p,  --path <path>\t\tPath to to IMA binaries (files or folders), multiple -d possible\n");
     printf("\t-s,  --strip <path>\t\tPath prefix to be stripped from paths before hashing\n");
-    printf("\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
-    printf("\t-b,  --boot_aggregate <digest>\tDigest of the IMA boot_aggregate to be added to eventlog\n");
+    printf(
+        "\t-i,  --imatemplate <template>\tIMA template to calculate entries for (ima-sig, ima-ng)\n");
+    printf(
+        "\t-b,  --boot_aggregate <digest>\tDigest of the IMA boot_aggregate to be added to eventlog\n");
     printf("\n");
 }
 
@@ -132,7 +135,8 @@ concat_path_new(const char *s1, const char *s2)
 }
 
 static char *
-strip_prefix_new(char *s, char *prefix) {
+strip_prefix_new(char *s, char *prefix)
+{
     if (!s) {
         return NULL;
     }
@@ -143,7 +147,8 @@ strip_prefix_new(char *s, char *prefix) {
 }
 
 static int
-calculate_ima_entry(uint8_t hash[SHA256_DIGEST_LENGTH], char *path, eventlog_t *evlog, bool optional)
+calculate_ima_entry(uint8_t hash[SHA256_DIGEST_LENGTH], char *path, eventlog_t *evlog,
+                    bool optional)
 {
     const char *hash_algo = "sha256:";
     uint32_t ima_digest_len = strlen("sha256:") + 1 + SHA256_DIGEST_LENGTH;
@@ -311,7 +316,9 @@ main(int argc, char *argv[])
 {
     int ret = -1;
     const char *progname = argv[0];
-    eventlog_t evlog = { .format = FORMAT_JSON, .log = NULL, .template = NULL, .strip = NULL, .pcr = 10 };
+    eventlog_t evlog = {
+        .format = FORMAT_JSON, .log = NULL, .template = NULL, .strip = NULL, .pcr = 10
+    };
     char **paths = NULL;
     size_t num_paths = 0;
     uint8_t *boot_aggregate = NULL;

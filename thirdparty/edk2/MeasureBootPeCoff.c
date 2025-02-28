@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <openssl/sha.h>
 #include <openssl/evp.h>
+#include <openssl/types.h>
 #include <openssl/ssl.h>
 
 #include "ProcessorBind.h"
@@ -946,6 +947,7 @@ LoadPeImage (
 
 EFI_STATUS
 MeasurePeImage (
+  const EVP_MD *md,
   uint8_t *hash,
   const uint8_t *buf,
   const UINTN buf_size)
@@ -1021,10 +1023,13 @@ MeasurePeImage (
 
   // 2.  Initialize a SHA hash context.
 
-  SHA256_CTX ctx;
-  SHA256_Init(&ctx);
-  if (EFI_ERROR (Status)) {
-    goto Finish;
+  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+  if (!ctx) {
+      goto Finish;
+  }
+
+  if (!EVP_DigestInit_ex(ctx, md, NULL)) {
+      goto Finish;
   }
 
   //
@@ -1060,7 +1065,7 @@ MeasurePeImage (
     DEBUG("\tHashSize: %lld\n", HashSize);
   }
 
-  Status = SHA256_Update (&ctx, HashBase, HashSize);
+  Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
   if (EFI_ERROR (Status)) {
     goto Finish;
   }
@@ -1088,7 +1093,7 @@ MeasurePeImage (
     }
 
     if (HashSize != 0) {
-      Status  = SHA256_Update (&ctx, HashBase, HashSize);
+      Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
       if (EFI_ERROR (Status)) {
         goto Finish;
       }
@@ -1112,7 +1117,7 @@ MeasurePeImage (
     }
 
     if (HashSize != 0) {
-      Status  = SHA256_Update (&ctx, HashBase, HashSize);
+      Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
       if (EFI_ERROR (Status)) {
         goto Finish;
       }
@@ -1137,7 +1142,7 @@ MeasurePeImage (
     }
 
     if (HashSize != 0) {
-      Status  = SHA256_Update (&ctx, HashBase, HashSize);
+      Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
       if (EFI_ERROR (Status)) {
         goto Finish;
       }
@@ -1209,7 +1214,7 @@ MeasurePeImage (
     HashBase = (UINT8 *) (UINTN) ImageAddress + Section->PointerToRawData;
     HashSize = (UINTN) Section->SizeOfRawData;
 
-    Status = SHA256_Update (&ctx, HashBase, HashSize);
+    Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
     if (EFI_ERROR (Status)) {
       goto Finish;
     }
@@ -1246,7 +1251,7 @@ MeasurePeImage (
     if (buf_size > CertSize + SumOfBytesHashed) {
       HashSize = (UINTN) (buf_size - CertSize - SumOfBytesHashed);
 
-      Status = SHA256_Update (&ctx, HashBase, HashSize);
+      Status = EVP_DigestUpdate(ctx, HashBase, HashSize);
       if (EFI_ERROR (Status)) {
         goto Finish;
       }
@@ -1264,11 +1269,14 @@ MeasurePeImage (
   //
   // 17.  Finalize the SHA hash.
   //
-  SHA256_Final(hash, &ctx);
+  EVP_DigestFinal_ex(ctx, hash, NULL);
 
 Finish:
   if (SectionHeader != NULL) {
     free (SectionHeader);
+  }
+  if (ctx) {
+    EVP_MD_CTX_free(ctx);
   }
 
   return Status;

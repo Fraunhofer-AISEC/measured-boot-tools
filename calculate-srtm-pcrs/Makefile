@@ -34,6 +34,7 @@ CSRS := \
 	../thirdparty/LzmaCustomDecompressLib/Sdk/C/LzFind.c \
 	../thirdparty/LzmaCustomDecompressLib/Sdk/C/LzmaDec.c \
 	../common/common.c \
+	../common/efi_boot.c \
 	../common/guid.c \
 	../common/hash.c \
 	../common/kernel_config.c \

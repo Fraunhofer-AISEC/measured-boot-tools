@@ -5,7 +5,7 @@ input and outputs the PCR summary or the detailed eventlog in a text format or j
 The tool is work in progress and currently only supports x86 systems started by QEMU with OVMF and a
 Linux kernel as PE/COFF image.
 
-- PCR0 UEFI is calculated based on the CRTM and OVMF firmware
+- PCR0 UEFI is calculated based on the OVMF firmware
 - PCR1 UEFI Configuration is calculated using the EFI boot variables
 - PCR2 is calculated based on optionally specified 3rd party UEFI drivers
 - PCR3 is calculated based on optionally specified 3rd party UEFI driver configurations
@@ -35,29 +35,24 @@ sudo make install
 ## Usage
 
 ```sh
-calculate-srtm-pcrs [options...]
-	-k,  --kernel <file>		The filename of the kernel image
-	-r,  --ramdisk <file>		The filename of the initramfs
-	-o,  --ovmf <file>			The filename of the OVMF.fd file
-	-d,  --driver <file>        The filename of a used 3rd party UEFI driver (can be multiple)
-	-f,  --format <text|json>	The output format, can be either 'json' or 'text'
-	-e,  --eventlog			    Print detailed eventlog
-	-s,  --summary			    Print final PCR values
-	-p,  --pcrs <nums>		    The numbers of the PCRs to be calculated as a comma separated list without spaces
-	-v,  --verbose				Verbose debug output
-	-c,  --config 				Path to the OVMF / kernel variable configuration file
+calculate-srtm-pcrs --help
 ```
 
-## Example Usage
+### Example Usage
 
 ```sh
 ./calculate-srtm-pcrs \
-	--kernel kernel-linux-amd64-virtio-systemd-debug.bzImage \
-	--ovmf-code OVMF.fd \
+	--ovmf OVMF.fd \
+	--kernel linux-amd64-virtio-systemd-debug.bzImage \
+	--config configs/default.cfg \
+	--acpirsdp configs/etc-acpi-rsdp \
+    --acpitables configs/etc-acpi-tables \
+    --tableloader configs/etc-table-loader \
+	--tpmlog configs/etc-tpm-log \
+	--pcrs 0,1,3,4,5,6,7 \
 	--format json \
-	--pcrs 1,3,4,5,6,7 \
 	--eventlog \
-	--config configs/default.cfg
+	--summary \
 ```
 
 ## Configuration

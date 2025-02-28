@@ -31,18 +31,24 @@ typedef enum {
 } hash_algo_t;
 
 void
-sha256(uint8_t *hash, uint8_t *data, size_t len);
+hash_buf(const EVP_MD *md, uint8_t *hash, uint8_t *data, size_t len);
 
 void
-hash_buf(const EVP_MD *md, uint8_t *hash, uint8_t *data, size_t len);
+hash_extend(const EVP_MD *md, uint8_t *pcr_value, uint8_t *pcr_extend, size_t len);
 
 int
 hash_file(const EVP_MD *md, uint8_t *file_hash, const char *filename);
 
 void
+sha256(uint8_t *hash, uint8_t *data, size_t len);
+
+void
 sha256_extend(uint8_t *pcr_value, uint8_t *pcr_extend);
 
 void
-hash_extend(const EVP_MD *md, uint8_t *pcr_value, uint8_t *pcr_extend, size_t len);
+sha384(uint8_t *hash, uint8_t *data, size_t len);
+
+void
+sha384_extend(uint8_t *pcr_value, uint8_t *pcr_extend);
 
 #endif // HASH_H_

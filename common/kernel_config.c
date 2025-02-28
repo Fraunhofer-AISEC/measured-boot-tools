@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <openssl/sha.h>
+#include <openssl/evp.h>
 
 #include "ProcessorBind.h"
 #include "Base.h"

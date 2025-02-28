@@ -336,95 +336,6 @@ extract_lzma_fvmain_new (EFI_FIRMWARE_VOLUME_HEADER  *Fv, size_t *extracted_size
     return fvmain;
 }
 
-///
-/// Details the location of a firmware volume that was extracted
-/// from a file within another firmware volume.
-///
-typedef struct {
-  ///
-  /// The HOB generic header. Header.HobType = EFI_HOB_TYPE_FV2.
-  ///
-  EFI_HOB_GENERIC_HEADER    Header;
-  ///
-  /// The physical memory-mapped base address of the firmware volume.
-  ///
-  EFI_PHYSICAL_ADDRESS      BaseAddress;
-  ///
-  /// The length in bytes of the firmware volume.
-  ///
-  UINT64                    Length;
-  ///
-  /// The name of the firmware volume.
-  ///
-  EFI_GUID                  FvName;
-  ///
-  /// The name of the firmware file that contained this firmware volume.
-  ///
-  EFI_GUID                  FileName;
-} EFI_HOB_FIRMWARE_VOLUME2;
-
-///
-/// Contains general state information used by the HOB producer phase.
-/// This HOB must be the first one in the HOB list.
-///
-typedef struct {
-  ///
-  /// The HOB generic header. Header.HobType = EFI_HOB_TYPE_HANDOFF.
-  ///
-  EFI_HOB_GENERIC_HEADER    Header;
-  ///
-  /// The version number pertaining to the PHIT HOB definition.
-  /// This value is four bytes in length to provide an 8-byte aligned entry
-  /// when it is combined with the 4-byte BootMode.
-  ///
-  UINT32                    Version;
-  ///
-  /// The system boot mode as determined during the HOB producer phase.
-  ///
-  UINT32             BootMode;
-  ///
-  /// The highest address location of memory that is allocated for use by the HOB producer
-  /// phase. This address must be 4-KB aligned to meet page restrictions of UEFI.
-  ///
-  EFI_PHYSICAL_ADDRESS      EfiMemoryTop;
-  ///
-  /// The lowest address location of memory that is allocated for use by the HOB producer phase.
-  ///
-  EFI_PHYSICAL_ADDRESS      EfiMemoryBottom;
-  ///
-  /// The highest address location of free memory that is currently available
-  /// for use by the HOB producer phase.
-  ///
-  EFI_PHYSICAL_ADDRESS      EfiFreeMemoryTop;
-  ///
-  /// The lowest address location of free memory that is available for use by the HOB producer phase.
-  ///
-  EFI_PHYSICAL_ADDRESS      EfiFreeMemoryBottom;
-  ///
-  /// The end of the HOB list.
-  ///
-  EFI_PHYSICAL_ADDRESS      EfiEndOfHobList;
-} EFI_HOB_HANDOFF_INFO_TABLE;
-
-#define EFI_HOB_TYPE_HANDOFF              0x0001
-#define EFI_HOB_TYPE_MEMORY_ALLOCATION    0x0002
-#define EFI_HOB_TYPE_RESOURCE_DESCRIPTOR  0x0003
-#define EFI_HOB_TYPE_GUID_EXTENSION       0x0004
-#define EFI_HOB_TYPE_FV                   0x0005
-#define EFI_HOB_TYPE_CPU                  0x0006
-#define EFI_HOB_TYPE_MEMORY_POOL          0x0007
-#define EFI_HOB_TYPE_FV2                  0x0009
-#define EFI_HOB_TYPE_LOAD_PEIM_UNUSED     0x000A
-#define EFI_HOB_TYPE_UEFI_CAPSULE         0x000B
-#define EFI_HOB_TYPE_FV3                  0x000C
-#define EFI_HOB_TYPE_UNUSED               0xFFFE
-#define EFI_HOB_TYPE_END_OF_HOB_LIST      0xFFFF
-
-///
-/// Value of version  in EFI_HOB_HANDOFF_INFO_TABLE.
-///
-#define EFI_HOB_HANDOFF_TABLE_VERSION  0x0009
-
 int
 measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_pei_path)
 {
@@ -435,13 +346,11 @@ measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *d
     sha256(hash, peifv, peifv_size);
 
     if (dump_pei_path) {
-        FILE *f = fopen(dump_pei_path, "wb");
-        if (!f) {
-            printf("Failed to write PEIFV to %s\n", dump_pei_path);
-            return -1;
+        if (write_file(peifv, peifv_size, dump_pei_path)) {
+          printf("Failed to write PEIFV to %s\n", dump_pei_path);
+          return -1;
         }
-        fwrite(peifv, peifv_size, 1, f);
-        printf("Wrote PEIFV\n");
+        DEBUG("Wrote PEIFV to %s\n", dump_pei_path);
     }
 
     return 0;
@@ -456,13 +365,11 @@ int measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const cha
     sha256(hash, dxefv, dxefv_size);
 
     if (dump_dxe_path) {
-        FILE *f = fopen(dump_dxe_path,"wb");
-        if (!f) {
-            printf("Failed to write DXEFV to %s\n", dump_dxe_path);
-            return -1;
+        if (write_file(dxefv, dxefv_size, dump_dxe_path)) {
+          printf("Failed to write DXEFV to %s\n", dump_dxe_path);
+          return -1;
         }
-        fwrite(dxefv, dxefv_size, 1, f);
-        printf("Wrote DXEFV\n");
+        DEBUG("Wrote DXEFV to %s\n", dump_dxe_path);
     }
 
     return 0;
