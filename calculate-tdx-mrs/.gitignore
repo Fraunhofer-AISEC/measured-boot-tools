@@ -1,0 +1,4 @@
+*.o
+.vscode
+calculate-tdx-mrs
+run.sh
