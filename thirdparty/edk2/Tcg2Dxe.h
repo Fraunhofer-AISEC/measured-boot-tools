@@ -3,20 +3,15 @@
 #pragma once
 
 #include "UefiBaseType.h"
+#include "UefiTcgPlatform.h"
 
 #include "eventlog.h"
 
-///
-/// Index to a PCR register
-///
-typedef UINT32 TPM_PCRINDEX;
-
-typedef UINT32        TCG_EVENTTYPE;
-
 int MeasureVariable(
-  IN      UINT8                     *pcr,
+  IN      const EVP_MD              *md,
+  IN      UINT8                     *mr,
+  IN      UINT32                    mr_index,
 	IN      eventlog_t                *evlog,
-  IN      TPM_PCRINDEX              PCRIndex,
   IN      TCG_EVENTTYPE             EventType,
   IN      CHAR16                    *VarName,
   IN      EFI_GUID                  *VendorGuid,
@@ -26,6 +21,16 @@ int MeasureVariable(
 
 EFI_STATUS
 MeasureAllSecureVariables (
-  IN  UINT8       *pcr,
-  IN  eventlog_t  *evlog
+  IN  const EVP_MD  *md,
+  IN  UINT8         *mr,
+  IN  UINT32        mr_index,
+  IN  eventlog_t    *evlog
+  );
+
+EFI_STATUS
+MeasureAllBootVariables (
+  IN      const EVP_MD  *md,
+  IN      UINT8         *mr,
+  IN      UINT32        mr_index,
+  IN      eventlog_t    *evlog
   );

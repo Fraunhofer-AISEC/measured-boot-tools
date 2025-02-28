@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <uchar.h>
 
 #define ASSERT(expr)                                                                               \
     if (!(expr)) {                                                                                 \
@@ -69,7 +70,19 @@ int
 read_file(uint8_t **buf, uint64_t *size, const char *filename);
 
 int
+write_file(const uint8_t *buf, size_t size, const char *filename);
+
+int
 convert_hex_to_bin(const char *in, size_t inlen, uint8_t *out, size_t outlen);
 
 char *
 convert_bin_to_hex(const uint8_t *bin, int length);
+
+char16_t *
+convert_to_char16(const char *in, size_t *out_len);
+
+size_t
+char16_strlen(const char16_t *str);
+
+char *
+convert_to_char(const char16_t *in, size_t *out_len);

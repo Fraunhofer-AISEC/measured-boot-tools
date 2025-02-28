@@ -2,42 +2,8 @@
 
 #pragma once
 
-///
-/// Describes the format and size of the data inside the HOB.
-/// All HOBs must contain this generic HOB header.
-///
-typedef struct {
-  ///
-  /// Identifies the HOB data structure type.
-  ///
-  UINT16    HobType;
-  ///
-  /// The length in bytes of the HOB.
-  ///
-  UINT16    HobLength;
-  ///
-  /// This field must always be set to zero.
-  ///
-  UINT32    Reserved;
-} EFI_HOB_GENERIC_HEADER;
-
-///
-/// Allows writers of executable content in the HOB producer phase to
-/// maintain and manage HOBs with specific GUID.
-///
-typedef struct {
-  ///
-  /// The HOB generic header. Header.HobType = EFI_HOB_TYPE_GUID_EXTENSION.
-  ///
-  EFI_HOB_GENERIC_HEADER    Header;
-  ///
-  /// A GUID that defines the contents of this HOB.
-  ///
-  EFI_GUID                  Name;
-  //
-  // Guid specific data goes here
-  //
-} EFI_HOB_GUID_TYPE;
+#include <openssl/sha.h>
+#include "PiHob.h"
 
 #pragma pack(1)
 typedef struct {

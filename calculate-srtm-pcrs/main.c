@@ -35,6 +35,7 @@
 #include "kernel_config.h"
 #include "eventlog.h"
 #include "paths.h"
+#include "efi_boot.h"
 
 #define MAX_PCRS 24
 
@@ -62,7 +63,7 @@ volatile bool debug_output = false;
  */
 static int
 calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const char *dump_pei_path,
-    const char *dump_dxe_path)
+               const char *dump_dxe_path)
 {
     int ret = -1;
     uint8_t *fvmain_compact_buf = NULL;
@@ -80,8 +81,8 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
     uint8_t hash_ev_s_crtm_version[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_s_crtm_version, (uint8_t *)ev_s_crtm_version,
              sizeof(ev_s_crtm_version));
-    evlog_add(evlog, 0, "EV_S_CRTM_VERSION", hash_ev_s_crtm_version,
-                 "CRTM Version String");
+    evlog_add(evlog, 0, "EV_S_CRTM_VERSION", hash_ev_s_crtm_version, "CRTM Version String");
+    hash_extend(EVP_sha256(), pcr, hash_ev_s_crtm_version, SHA256_DIGEST_LENGTH);
 
     DEBUG("Extracting FVMAIN_COMPACT.Fv from OVMF.fd\n");
     uint8_t *ovmf_buf = NULL;
@@ -128,6 +129,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
         goto out;
     }
     evlog_add(evlog, 0, "PEIFV", peifv_hash, "OVMF UEFI PEI Firmware Volume");
+    hash_extend(EVP_sha256(), pcr, peifv_hash, SHA256_DIGEST_LENGTH);
 
     // Measure DXEFV
     uint8_t dxefv_hash[SHA256_DIGEST_LENGTH];
@@ -137,6 +139,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
         goto out;
     }
     evlog_add(evlog, 0, "DXEFV", dxefv_hash, "OVMF UEFI DXE Firmware Volume");
+    hash_extend(EVP_sha256(), pcr, dxefv_hash, SHA256_DIGEST_LENGTH);
 
     // EV_SEPARATOR
     ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -148,11 +151,6 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
     uint8_t hash_ev_separator[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     evlog_add(evlog, 0, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
-
-    // Extend all values
-    hash_extend(EVP_sha256(), pcr, hash_ev_s_crtm_version, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, peifv_hash, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, dxefv_hash, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
     ret = 0;
@@ -217,31 +215,27 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
         hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
     }
 
-    // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
-    uint8_t efi_variable_boot[2] = { 0 };
+    // EV_EFI_VARIABLE_BOOT Boot Order
+    uint8_t efi_variable_boot[2] = { 0x0, 0x0 };
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
              sizeof(efi_variable_boot));
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
-                 "Hash EFI Variable Boot: Hash(0000)");
+              "Hash EFI Variable Boot: Hash(0000)");
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
 
-    // EV_EFI_VARIABLE_BOOT TODO replace hardcoded data
+    // EV_EFI_VARIABLE_BOOT Boot0000
     long len = 0;
-    uint8_t *efi_variable_boot2 = OPENSSL_hexstr2buf(
-        "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400",
-        &len);
-    if (!efi_variable_boot2) {
-        printf("Failed to allocate memory for efi boot variable\n");
+    uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
+    if (!efi_variable_boot0000) {
+        printf("failed to calculate efi load option\n");
         goto out;
     }
-    uint8_t hash_efi_variable_boot2[SHA256_DIGEST_LENGTH];
-    // Hash: 3197be1e300fa1600d1884c3a4bd4a90a15405bfb546cf2e6cf6095f8c362a93
-    hash_buf(EVP_sha256(), hash_efi_variable_boot2, (uint8_t *)efi_variable_boot2, len);
-    evlog_add(
-        evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot2,
-        "HASH(090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400)");
-    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot2, SHA256_DIGEST_LENGTH);
+    uint8_t hash_efi_variable_boot0000[SHA256_DIGEST_LENGTH];
+    hash_buf(EVP_sha256(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
+    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
+              "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot0000, SHA256_DIGEST_LENGTH);
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -257,8 +251,8 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     ret = 0;
 
 out:
-    if (efi_variable_boot2)
-        OPENSSL_free(efi_variable_boot2);
+    if (efi_variable_boot0000)
+        free(efi_variable_boot0000);
     if (ev_separator)
         OPENSSL_free(ev_separator);
 
@@ -294,13 +288,13 @@ calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drive
             return -1;
         }
 
-        EFI_STATUS status = MeasurePeImage(hash_driver, driver_buf, driver_size);
+        EFI_STATUS status = MeasurePeImage(EVP_sha256(), hash_driver, driver_buf, driver_size);
         if (EFI_ERROR(status)) {
             printf("printf: Failed to measure PE Image: %llx\n", status);
             return -1;
         }
         evlog_add(evlog, 2, "EV_EFI_BOOT_SERVICES_DRIVER", hash_driver,
-                     basename((char *)drivers[i]));
+                  basename((char *)drivers[i]));
 
         hash_extend(EVP_sha256(), pcr, hash_driver, SHA256_DIGEST_LENGTH);
 
@@ -368,8 +362,7 @@ calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
  * @param kernel_file The path of the kernel image (.bzImage) to use for the calculations
  */
 static int
-calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
-               config_t *config)
+calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, config_t *config)
 {
     int ret = -1;
 
@@ -392,13 +385,13 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
         goto out;
     }
 
-    EFI_STATUS status = MeasurePeImage(hash_kernel, kernel_buf, kernel_size);
+    EFI_STATUS status = MeasurePeImage(EVP_sha256(), hash_kernel, kernel_buf, kernel_size);
     if (EFI_ERROR(status)) {
         printf("printf: Failed to measure PE Image: %llx\n", status);
         goto out;
     }
     evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", hash_kernel,
-                 basename((char *)kernel_file));
+              basename((char *)kernel_file));
 
     // TCG PCClient Firmware Spec: https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf 10.4.4
     // EV_EFI_ACTION "Calling EFI Application from Boot Option"
@@ -406,7 +399,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file,
     uint8_t hash_efi_action[SHA256_DIGEST_LENGTH];
     hash_buf(EVP_sha256(), hash_efi_action, (uint8_t *)action_data, strlen(action_data));
     evlog_add(evlog, 4, "EV_EFI_ACTION", hash_efi_action,
-                 "HASH('Calling EFI Application from Boot Option')");
+              "HASH('Calling EFI Application from Boot Option')");
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -461,7 +454,7 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog)
     hash_buf(EVP_sha256(), hash_efi_action_boot_invocation, (uint8_t *)efi_action_boot_invocation,
              strlen(efi_action_boot_invocation));
     evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_invocation,
-                 "HASH('Exit Boot Services Invocation')");
+              "HASH('Exit Boot Services Invocation')");
 
     // EV_EFI_ACTION "Exit Boot Services Returned with Success"
     char *efi_action_boot_exit = "Exit Boot Services Returned with Success";
@@ -469,7 +462,7 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog)
     hash_buf(EVP_sha256(), hash_efi_action_boot_exit, (uint8_t *)efi_action_boot_exit,
              strlen(efi_action_boot_exit));
     evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_exit,
-                 "HASH('Exit Boot Services Returned with Success')");
+              "HASH('Exit Boot Services Returned with Success')");
 
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_action_boot_invocation, SHA256_DIGEST_LENGTH);
@@ -520,9 +513,14 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // TODO: Support secure boot
+    // TODO: Support enabled secure boot
 
-    MeasureAllSecureVariables(pcr, evlog);
+    // Measure UEFI Secure Boot Variables: SecureBoot, PK, KEK, db, dbx
+    EFI_STATUS status = MeasureAllSecureVariables(EVP_sha256(), pcr, 7, evlog);
+    if (status != EFI_SUCCESS) {
+        printf("Failed to measure secure boot variables\n");
+        return -1;
+    }
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -623,9 +621,10 @@ print_usage(const char *progname)
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
     printf("\t-g,  --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
-    printf("\t     --path\t\t\t Path to folder or file to be extended into PCR9 (multiple possible)\n");
-    printf("\t     --dumppei\t\t\t Optional path to folder to dump the PEIFV that was hashed\n");
-    printf("\t     --dumpdxe\t\t\t Optional path to folder to dump the DXEFV that was hashed\n");
+    printf(
+        "\t     --path\t\t\tPath to folder or file to be extended into PCR9 (multiple possible)\n");
+    printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
+    printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
     printf("\n");
 }
 
@@ -638,17 +637,6 @@ contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
         }
     }
     return false;
-}
-
-long
-file_size(const char *filename)
-{
-    struct stat st = { 0 };
-    int ret = stat(filename, &st);
-    if (ret < 0) {
-        return -1;
-    }
-    return st.st_size;
 }
 
 int
@@ -673,16 +661,10 @@ main(int argc, char *argv[])
     size_t num_uefi_drivers = 0;
     char **paths = NULL;
     size_t num_paths = 0;
-    eventlog_t evlog = {
-        .format = FORMAT_TEXT,
-        .log = { 0 }
-    };
+    eventlog_t evlog = { .format = FORMAT_TEXT, .log = { 0 } };
     pcr1_config_files_t pcr1_cfg = {
-        .acpi_rsdp_size = -1,
-        .acpi_tables_size = -1,
-        .table_loader_size = -1,
-        .tpm_log_size = -1
-     };
+        .acpi_rsdp_size = -1, .acpi_tables_size = -1, .table_loader_size = -1, .tpm_log_size = -1
+    };
 
     argv++;
     argc--;
@@ -771,7 +753,7 @@ main(int argc, char *argv[])
             argv++;
             argc--;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
-            pcr1_cfg.acpi_rsdp_size = file_size(argv[1]);
+            pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
             if (pcr1_cfg.acpi_rsdp_size < 0) {
                 printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
                 goto out;
@@ -780,7 +762,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
-            pcr1_cfg.acpi_tables_size = file_size(argv[1]);
+            pcr1_cfg.acpi_tables_size = get_file_size(argv[1]);
             if (pcr1_cfg.acpi_tables_size < 0) {
                 printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
                 goto out;
@@ -789,7 +771,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
-            pcr1_cfg.table_loader_size = file_size(argv[1]);
+            pcr1_cfg.table_loader_size = get_file_size(argv[1]);
             if (pcr1_cfg.table_loader_size < 0) {
                 printf("Failed to get file size of table loader file %s\n", argv[1]);
                 goto out;
@@ -798,7 +780,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-g") || !strcmp(argv[0], "--tpmlog")) && argc >= 2) {
-            pcr1_cfg.tpm_log_size = file_size(argv[1]);
+            pcr1_cfg.tpm_log_size = get_file_size(argv[1]);
             if (pcr1_cfg.tpm_log_size < 0) {
                 printf("Failed to get file size of TPM log file %s\n", argv[1]);
                 goto out;
@@ -828,22 +810,22 @@ main(int argc, char *argv[])
         goto out;
     }
 
-    if (pcr1_cfg.acpi_rsdp_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.acpi_rsdp_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file ACPI RSDP must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (pcr1_cfg.acpi_tables_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.acpi_tables_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file ACPI tables must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (pcr1_cfg.table_loader_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.table_loader_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file table loader must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
     }
-    if (pcr1_cfg.tpm_log_size == -1  && contains(pcr_nums, len_pcr_nums, 1)) {
+    if (pcr1_cfg.tpm_log_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
         printf("PCR1 Config file TPM log must be specified to calculate PCR1\n");
         print_usage(progname);
         goto out;
@@ -878,7 +860,8 @@ main(int argc, char *argv[])
     DEBUG("\tKernel:    %s\n", kernel);
     if (ramdisk) {
         DEBUG("\tInitramfs: %s\n", ramdisk);
-    } if (cmdline) {
+    }
+    if (cmdline) {
         DEBUG("\tCmdline: %s\n", cmdline);
     }
     DEBUG("\tOVMF: %s\n", ovmf);
@@ -890,6 +873,12 @@ main(int argc, char *argv[])
     }
     for (size_t i = 0; i < num_paths; i++) {
         DEBUG("\tPath: %s\n", paths[i]);
+    }
+    if (dump_pei_path) {
+        DEBUG("\tPEIFV measurement dump path: %s\n", dump_pei_path);
+    }
+    if (dump_dxe_path) {
+        DEBUG("\tDXEFV measurement dump path: %s\n", dump_dxe_path);
     }
 
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];

@@ -23,8 +23,7 @@ encode_hex(const uint8_t *bin, int length)
 }
 
 int
-evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash,
-             const char *desc)
+evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash, const char *desc)
 {
     int ret;
     char *hashstr = encode_hex(hash, SHA256_DIGEST_LENGTH);

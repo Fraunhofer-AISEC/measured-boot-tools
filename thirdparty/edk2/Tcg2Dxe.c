@@ -18,6 +18,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <openssl/evp.h>
 #include <openssl/sha.h>
 
 #include "string.h"
@@ -30,35 +31,12 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include "PeImage.h"
 #include "PeCoffLib.h"
 #include "Tcg2Dxe.h"
+#include "UefiTcgPlatform.h"
 
 #include "common.h"
 #include "hash.h"
 #include "eventlog.h"
 
-#define PERF_ID_TCG2_DXE  0x3120
-
-typedef struct {
-  CHAR16      *VariableName;
-  EFI_GUID    *VendorGuid;
-} VARIABLE_TYPE;
-
-///
-/// UEFI_VARIABLE_DATA
-///
-/// This structure serves as the header for measuring variables. The name of the
-/// variable (in Unicode format) should immediately follow, then the variable
-/// data.
-/// This is defined in TCG PC Client Firmware Profile Spec 00.21
-///
-#pragma pack (1)
-typedef struct tdUEFI_VARIABLE_DATA {
-  EFI_GUID                          VariableName;
-  UINT64                            UnicodeNameLength;
-  UINT64                            VariableDataLength;
-  CHAR16                            UnicodeName[1];
-  INT8                              VariableData[1];  ///< Driver or platform-specific data
-} UEFI_VARIABLE_DATA;
-#pragma pack ()
 
 EFI_GUID gEfiGlobalVariableGuid = EFI_GLOBAL_VARIABLE;
 
@@ -71,9 +49,6 @@ VARIABLE_TYPE  mVariableType[] = {
   { EFI_IMAGE_SECURITY_DATABASE,  &gEfiImageSecurityDatabaseGuid },
   { EFI_IMAGE_SECURITY_DATABASE1, &gEfiImageSecurityDatabaseGuid },
 };
-
-UINTN   mBootAttempts  = 0;
-CHAR16  mBootVarName[] = u"BootOrder";
 
 UINTN
 EFIAPI
@@ -93,9 +68,10 @@ StrLen (
 }
 
 int MeasureVariable(
-  IN      UINT8                     *pcr,
+  IN      const EVP_MD              *md,
+  IN      UINT8                     *mr,
+  IN      UINT32                    mr_index,
 	IN      eventlog_t                *evlog,
-  IN      TPM_PCRINDEX              PCRIndex,
   IN      TCG_EVENTTYPE             EventType,
   IN      CHAR16                    *VarName,
   IN      EFI_GUID                  *VendorGuid,
@@ -103,7 +79,6 @@ int MeasureVariable(
   IN      UINTN                     VarSize
   )
 {
-  (void)PCRIndex;
   UINTN                             VarNameLength;
   UEFI_VARIABLE_DATA                *VarLog;
   UINTN                             event_size;
@@ -141,57 +116,21 @@ int MeasureVariable(
     VarNameNarrow[i] = VarName[i] & 0xFF;
   }
 
-  uint8_t hash[SHA256_DIGEST_LENGTH];
-	sha256(hash, (uint8_t *)VarLog, event_size);
+  uint8_t hash[EVP_MD_size(md)];
+	hash_buf(md, hash, (uint8_t *)VarLog, event_size);
 
-  // TODO replace hardcoded event type
   if (EventType == EV_EFI_VARIABLE_DRIVER_CONFIG) {
-    evlog_add(evlog, 7, "EV_EFI_VARIABLE_DRIVER_CONFIG", hash, VarNameNarrow);
+    evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_DRIVER_CONFIG", hash, VarNameNarrow);
+  } else if (EventType == EV_EFI_VARIABLE_BOOT) {
+    evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash, VarNameNarrow);
   } else {
-    printf("Unknown event type 0x%x\n", EventType);
+    printf("Unsupported event type 0x%x\n", EventType);
   }
 
-  sha256_extend(pcr, hash);
+  hash_extend(md, mr, hash, EVP_MD_size(md));
 
   free (VarLog);
   return 0;
-}
-
-/**
-  Returns the status whether get the variable success. The function retrieves
-  variable  through the UEFI Runtime Service GetVariable().  The
-  returned buffer is allocated using AllocatePool().  The caller is responsible
-  for freeing this buffer with FreePool().
-
-  If Name  is NULL, then ASSERT().
-  If Guid  is NULL, then ASSERT().
-  If Value is NULL, then ASSERT().
-
-  @param[in]  Name  The pointer to a Null-terminated Unicode string.
-  @param[in]  Guid  The pointer to an EFI_GUID structure
-  @param[out] Value The buffer point saved the variable info.
-  @param[out] Size  The buffer size of the variable.
-
-  @return EFI_OUT_OF_RESOURCES      Allocate buffer failed.
-  @return EFI_SUCCESS               Find the specified variable.
-  @return Others Errors             Return errors from call to gRT->GetVariable.
-
-**/
-EFI_STATUS
-EFIAPI
-GetVariable2 (
-  IN CONST CHAR16    *Name,
-  IN CONST EFI_GUID  *Guid,
-  OUT VOID           **Value,
-  OUT UINTN          *Size OPTIONAL
-  )
-{
-  (void)Name;
-  (void)Guid;
-  (void)Value;
-  (void)Size;
-  // TODO
-  return EFI_UNSUPPORTED;
 }
 
 /**
@@ -211,9 +150,10 @@ GetVariable2 (
 **/
 EFI_STATUS
 ReadAndMeasureVariable (
-  IN      UINT8          *pcr,
+  IN      const EVP_MD   *md,
+  IN      UINT8          *mr,
   IN      eventlog_t     *evlog,
-  IN      TPM_PCRINDEX   PCRIndex,
+  IN      UINT32         mr_index,
   IN      TCG_EVENTTYPE  EventType,
   IN      CHAR16         *VarName,
   IN      EFI_GUID       *VendorGuid,
@@ -223,28 +163,16 @@ ReadAndMeasureVariable (
 {
   EFI_STATUS  Status;
 
-  Status = GetVariable2 (VarName, VendorGuid, VarData, VarSize);
-  if (EventType == EV_EFI_VARIABLE_DRIVER_CONFIG) {
-    if (EFI_ERROR (Status)) {
-      //
-      // It is valid case, so we need handle it.
-      //
-      *VarData = NULL;
-      *VarSize = 0;
-    }
-  } else {
-    //
-    // if status error, VarData is freed and set NULL by GetVariable2
-    //
-    if (EFI_ERROR (Status)) {
-      return EFI_NOT_FOUND;
-    }
-  }
+  // Here, The function GetVariable2 usually retrieves the variable through the UEFI Runtime Service
+  // GetVariable(). Currently, we only support empty VarData
+  *VarData = NULL;
+  *VarSize = 0;
 
   Status = MeasureVariable (
-             pcr,
+             md,
+             mr,
+             mr_index,
              evlog,
-             PCRIndex,
              EventType,
              VarName,
              VendorGuid,
@@ -252,42 +180,6 @@ ReadAndMeasureVariable (
              *VarSize
              );
   return Status;
-}
-
-/**
-  Read then Measure and log an EFI boot variable, and extend the measurement result into PCR[1].
-according to TCG PC Client PFP spec 0021 Section 2.4.4.2
-
-  @param[in]   VarName          A Null-terminated string that is the name of the vendor's variable.
-  @param[in]   VendorGuid       A unique identifier for the vendor.
-  @param[out]  VarSize          The size of the variable data.
-  @param[out]  VarData          Pointer to the content of the variable.
-
-  @retval EFI_SUCCESS           Operation completed successfully.
-  @retval EFI_OUT_OF_RESOURCES  Out of memory.
-  @retval EFI_DEVICE_ERROR      The operation was unsuccessful.
-
-**/
-EFI_STATUS
-ReadAndMeasureBootVariable (
-  IN      UINT8       *pcr,
-  IN      eventlog_t  *evlog,
-  IN      CHAR16    *VarName,
-  IN      EFI_GUID  *VendorGuid,
-  OUT     UINTN     *VarSize,
-  OUT     VOID      **VarData
-  )
-{
-  return ReadAndMeasureVariable (
-           pcr,
-           evlog,
-           1,
-           EV_EFI_VARIABLE_BOOT,
-           VarName,
-           VendorGuid,
-           VarSize,
-           VarData
-           );
 }
 
 /**
@@ -305,87 +197,27 @@ ReadAndMeasureBootVariable (
 **/
 EFI_STATUS
 ReadAndMeasureSecureVariable (
-  IN      UINT8       *pcr,
-  IN      eventlog_t  *evlog,
-  IN      CHAR16      *VarName,
-  IN      EFI_GUID    *VendorGuid,
-  OUT     UINTN       *VarSize,
-  OUT     VOID        **VarData
+  IN      const EVP_MD  *md,
+  IN      UINT8         *mr,
+  IN      UINT32        mr_index,
+  IN      eventlog_t    *evlog,
+  IN      CHAR16        *VarName,
+  IN      EFI_GUID      *VendorGuid,
+  OUT     UINTN         *VarSize,
+  OUT     VOID          **VarData
   )
 {
   return ReadAndMeasureVariable (
-           pcr,
+           md,
+           mr,
            evlog,
-           7,
+           mr_index,
            EV_EFI_VARIABLE_DRIVER_CONFIG,
            VarName,
            VendorGuid,
            VarSize,
            VarData
            );
-}
-
-/**
-  Measure and log all EFI boot variables, and extend the measurement result into a specific PCR.
-
-  The EFI boot variables are BootOrder and Boot#### variables.
-
-  @retval EFI_SUCCESS           Operation completed successfully.
-  @retval EFI_OUT_OF_RESOURCES  Out of memory.
-  @retval EFI_DEVICE_ERROR      The operation was unsuccessful.
-
-**/
-EFI_STATUS
-MeasureAllBootVariables (
-  IN      UINT8       *pcr,
-  IN      eventlog_t  *evlog
-  )
-{
-  EFI_STATUS  Status;
-  UINT16      *BootOrder;
-  UINTN       BootCount;
-  UINTN       Index;
-  VOID        *BootVarData;
-  UINTN       Size;
-
-  Status = ReadAndMeasureBootVariable (
-             pcr,
-             evlog,
-             mBootVarName,
-             &gEfiGlobalVariableGuid,
-             &BootCount,
-             (VOID **)&BootOrder
-             );
-  if ((Status == EFI_NOT_FOUND) || (BootOrder == NULL)) {
-    return EFI_SUCCESS;
-  }
-
-  if (EFI_ERROR (Status)) {
-    //
-    // BootOrder can't be NULL if status is not EFI_NOT_FOUND
-    //
-    free (BootOrder);
-    return Status;
-  }
-
-  BootCount /= sizeof (*BootOrder);
-  for (Index = 0; Index < BootCount; Index++) {
-    snprintf (mBootVarName, sizeof (mBootVarName), u"Boot%04x", BootOrder[Index]);
-    Status = ReadAndMeasureBootVariable (
-               pcr,
-               evlog,
-               mBootVarName,
-               &gEfiGlobalVariableGuid,
-               &Size,
-               &BootVarData
-               );
-    if (!EFI_ERROR (Status)) {
-      free (BootVarData);
-    }
-  }
-
-  free (BootOrder);
-  return EFI_SUCCESS;
 }
 
 /**
@@ -400,8 +232,10 @@ MeasureAllBootVariables (
 **/
 EFI_STATUS
 MeasureAllSecureVariables (
-  IN  UINT8       *pcr,
-  IN  eventlog_t  *evlog
+  IN  const EVP_MD  *md,
+  IN  UINT8         *mr,
+  IN  UINT32        mr_index,
+  IN  eventlog_t    *evlog
   )
 {
   EFI_STATUS  Status;
@@ -412,7 +246,9 @@ MeasureAllSecureVariables (
   Status = EFI_NOT_FOUND;
   for (Index = 0; Index < sizeof (mVariableType)/sizeof (mVariableType[0]); Index++) {
     Status = ReadAndMeasureSecureVariable (
-               pcr,
+               md,
+               mr,
+               mr_index,
                evlog,
                mVariableType[Index].VariableName,
                mVariableType[Index].VendorGuid,
@@ -425,25 +261,6 @@ MeasureAllSecureVariables (
       }
     }
   }
-
-  // TODO not yet implemented
-  //
-  // Measure DBT if present and not empty
-  //
-  // Status = GetVariable2 (EFI_IMAGE_SECURITY_DATABASE2, &gEfiImageSecurityDatabaseGuid, &Data, &DataSize);
-  // if (!EFI_ERROR (Status)) {
-  //   Status = MeasureVariable (
-  //              7,
-  //              EV_EFI_VARIABLE_DRIVER_CONFIG,
-  //              EFI_IMAGE_SECURITY_DATABASE2,
-  //              &gEfiImageSecurityDatabaseGuid,
-  //              Data,
-  //              DataSize
-  //              );
-  //   FreePool (Data);
-  // } else {
-  //   DEBUG ((DEBUG_INFO, "Skip measuring variable %s since it's deleted\n", EFI_IMAGE_SECURITY_DATABASE2));
-  // }
 
   return EFI_SUCCESS;
 }

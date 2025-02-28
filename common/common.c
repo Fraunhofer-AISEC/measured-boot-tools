@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <uchar.h>
 
 #include "common.h"
 
@@ -146,6 +147,26 @@ read_file(uint8_t **buf, uint64_t *size, const char *filename)
 }
 
 int
+write_file(const uint8_t *buf, size_t size, const char *filename)
+{
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        printf("Failed to open file");
+        return -1;
+    }
+
+    size_t written = fwrite(buf, 1, size, file);
+    if (written != size) {
+        printf("Failed to write complete buffer");
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+    return 0;
+}
+
+int
 convert_hex_to_bin(const char *in, size_t inlen, uint8_t *out, size_t outlen)
 {
     ASSERT(inlen >= 2);
@@ -198,4 +219,60 @@ convert_bin_to_hex(const uint8_t *bin, int length)
     }
 
     return hex;
+}
+
+char16_t *
+convert_to_char16(const char *in, size_t *out_len)
+{
+    // TODO Very simple conversion, but for now preferred over
+    // iconv for machines that do not have UTF-16 available
+    if (!in) {
+        return NULL;
+    }
+    size_t olen = strlen(in) * 2 + 2;
+    char16_t *out = (char16_t *)malloc(olen);
+    memset(out, 0x0, olen);
+    for (size_t i = 0; i < strlen(in) + 1; i++) {
+        out[i] = in[i];
+    }
+    if (out_len) {
+        *out_len = olen;
+    }
+    return out;
+}
+
+char *
+convert_to_char(const char16_t *in, size_t *out_len)
+{
+    if (!in) {
+        return NULL;
+    }
+    size_t len = 0;
+    while (in[len] != 0)
+        len++;
+
+    char *out = (char *)malloc(len + 1);
+    if (!out)
+        return NULL;
+
+    for (size_t i = 0; i < len; i++) {
+        out[i] = (char)(in[i] & 0xFF);
+    }
+    out[len] = '\0';
+
+    if (out_len) {
+        *out_len = len;
+    }
+
+    return out;
+}
+
+size_t
+char16_strlen(const char16_t *str)
+{
+    size_t len = 0;
+    while (*str++) {
+        len++;
+    }
+    return len;
 }
