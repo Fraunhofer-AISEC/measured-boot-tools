@@ -72,8 +72,8 @@ evlog_add(eventlog_t *evlog, char *path, uint8_t *hash, size_t hashlen, bool opt
         ret = snprintf(s, sizeof(s),
                        "{"
                        "\n\t\"type\":\"TPM Reference Value\","
-                       "\n\t\"name\":\"%s\","
-                       "\n\t\"pcr\":%ld,"
+                       "\n\t\"subtype\":\"%s\","
+                       "\n\t\"index\":%ld,"
                        "\n\t\"sha256\":\"%s\","
                        "\n\t\"description\":\"%s\","
                        "\n\t\"optional\":%s"
