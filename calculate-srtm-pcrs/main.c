@@ -974,10 +974,10 @@ main(int argc, char *argv[])
         for (uint32_t i = 0; i < len_pcr_nums; i++) {
             if (evlog.format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
-                    pcr_nums[i], pcr_nums[i]);
+                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"PCR Summary\",\n\t\"index\":%d,\n\t\"sha256\":\"",
+                    pcr_nums[i]);
                 print_data_no_lf(pcr[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
-                printf("\"\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
+                printf("\",\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
                 if (i < len_pcr_nums - 1) {
                     printf(",\n");
                 }

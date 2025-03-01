@@ -37,12 +37,12 @@ evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash
         ret = snprintf(s, sizeof(s),
                        "{"
                        "\n\t\"type\":\"TPM Reference Value\","
-                       "\n\t\"name\":\"%s\","
-                       "\n\t\"pcr\":%d,"
+                       "\n\t\"subtype\":\"%s\","
+                       "\n\t\"index\":%d,"
                        "\n\t\"sha256\":\"%s\","
-                       "\n\t\"description\":\"%s\""
+                       "\n\t\"description\":\"PCR%d: %s\""
                        "\n},\n",
-                       name, pcr_index, hashstr, desc);
+                       name, pcr_index, hashstr, pcr_index, desc);
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
                        "name: %s"
