@@ -15,6 +15,8 @@ const char *
 index_to_mr(uint32_t index)
 {
     switch (index) {
+    case INDEX_MRTD:
+        return "MRTD";
     case INDEX_RTMR0:
         return "RTMR0";
     case INDEX_RTMR1:
@@ -23,8 +25,6 @@ index_to_mr(uint32_t index)
         return "RTMR2";
     case INDEX_RTMR3:
         return "RTMR3";
-    case INDEX_MRTD:
-        return "MRTD";
     default:
         return "unknown";
     }
@@ -57,19 +57,19 @@ evlog_add(eventlog_t *evlog, uint32_t index, const char *name, uint8_t *hash, co
         ret = snprintf(s, sizeof(s),
                        "{"
                        "\n\t\"type\":\"TDX Reference Value\","
-                       "\n\t\"name\":\"%s\","
-                       "\n\t\"mr\":\"%s\","
+                       "\n\t\"subtype\":\"%s\","
+                       "\n\t\"index\":\"%d\","
                        "\n\t\"sha384\":\"%s\","
-                       "\n\t\"description\":\"%s\""
+                       "\n\t\"description\":\"%s: %s\""
                        "\n},\n",
-                       name, index_to_mr(index), hashstr, desc);
+                       name, index, hashstr, index_to_mr(index), desc);
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
-                       "name: %s"
-                       "\n\tmr: %s"
+                       "subtype: %s"
+                       "\n\tindex: %d"
                        "\n\tsha384: %s"
-                       "\n\tdescription: %s\n",
-                       name, index_to_mr(index), hashstr, desc);
+                       "\n\tdescription: %s: %s\n",
+                       name, index, hashstr, index_to_mr(index), desc);
     }
     if (!ret) {
         printf("Failed to print eventlog\n");

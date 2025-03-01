@@ -647,10 +647,9 @@ main(int argc, char *argv[])
         for (uint32_t i = 0; i < MR_LEN; i++) {
             if (evlog.format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"name\":\"%s\",\n\t\"sha384\":\"",
-                    index_to_mr(i));
+                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"subtype\":\"MR Summary\",\n\t\"index\":%d,\n\t\"sha384\":\"", i);
                 print_data_no_lf(mrs[i], SHA384_DIGEST_LENGTH, NULL);
-                printf("\"\n\t\"description\":\"%s\"\n}", index_to_mr(i));
+                printf("\",\n\t\"description\":\"%s\"\n}", index_to_mr(i));
                 if (i < MR_LEN - 1) {
                     printf(",\n");
                 }

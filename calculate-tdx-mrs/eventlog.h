@@ -4,6 +4,13 @@
 
 #define MR_LEN 5
 
+// UEFI Spec 2.10 Section 38.4.1:
+// TPM PCR Index | CC Measurement Register Index | TDX-measurement register
+//  ------------------------------------------------------------------------
+// 0             |   0                           |   MRTD
+// 1, 7          |   1                           |   RTMR[0]
+// 2~6           |   2                           |   RTMR[1]
+// 8~15          |   3                           |   RTMR[2]
 #define INDEX_MRTD 0
 #define INDEX_RTMR0 1
 #define INDEX_RTMR1 2
