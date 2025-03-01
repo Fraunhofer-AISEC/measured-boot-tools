@@ -104,7 +104,7 @@ event_specid_cb(TCG_EVENT const *event, void *data)
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(
             eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"%s\",\n\t\"index\":%d,\n\t\"sha256\":\"%s\"\n},\n",
             eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
     } else {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
@@ -127,7 +127,7 @@ event_initval_cb(void *data, int locality, int pcr)
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(
             eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"TPM_PCR_INIT_VALUE\",\n\t\"pcr\":%d,\n\t\"sha256\":\"000000000000000000000000000000000000000000000000000000000000000%d\"\n},\n",
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"TPM_PCR_INIT_VALUE\",\n\t\"index\":%d,\n\t\"sha256\":\"000000000000000000000000000000000000000000000000000000000000000%d\"\n},\n",
             pcr, locality);
     } else {
         ADD_EVLOG(
@@ -161,7 +161,7 @@ event_header_cb(TCG_EVENT const *event, size_t size, void *data)
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(
             eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n\t\"sha256\":\"%s\"\n},\n",
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"%s\",\n\t\"index\":%d,\n\t\"sha256\":\"%s\"\n},\n",
             eventtype_to_string(event->eventType), event->pcrIndex, hexstr);
     } else {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
@@ -189,7 +189,7 @@ event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
 
     if (cb_data->format == FORMAT_JSON) {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"%s\",\n\t\"pcr\":%d,\n",
+                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"%s\",\n\t\"index\":%d,\n",
                   eventtype_to_string(eventhdr->EventType), eventhdr->PCRIndex);
     } else {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n",

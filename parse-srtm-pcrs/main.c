@@ -94,17 +94,16 @@ out:
 static void
 print_usage(const char *progname)
 {
-    printf("\nUsage: %s [options...]", progname);
-    printf("\t-h,  --help\t\tPrint help text");
-    printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'");
-    printf("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces");
-    printf("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs");
-    printf("\t-s,  --summary\t\tPrint the final extended PCR values");
-    printf("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs");
+    printf("\nUsage: %s [options...]\n", progname);
+    printf("\t-h,  --help\t\tPrint help text\n");
+    printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
+    printf("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces\n");
+    printf("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs\n");
+    printf("\t-s,  --summary\t\tPrint the final extended PCR values\n");
+    printf("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs\n");
     printf(
-        "\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)");
+        "\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
-    printf("\n");
 }
 
 int
@@ -242,10 +241,10 @@ main(int argc, char *argv[])
         for (size_t i = 0; i < len_pcr_nums; i++) {
             if (format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"name\":\"PCR%d\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
-                    pcr_nums[i], pcr_nums[i]);
+                    "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"PCR Summary\",\n\t\"pcr\":%d,\n\t\"sha256\":\"",
+                    pcr_nums[i]);
                 print_data_no_lf(cb_data.calc_pcrs[pcr_nums[i]], SHA256_DIGEST_LENGTH, NULL);
-                printf("\"\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
+                printf("\",\n\t\"description\":\"PCR%d\"\n}", pcr_nums[i]);
                 if (i < len_pcr_nums - 1) {
                     printf(",\n");
                 }
