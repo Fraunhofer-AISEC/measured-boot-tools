@@ -58,7 +58,7 @@ evlog_add(eventlog_t *evlog, uint32_t index, const char *name, uint8_t *hash, co
                        "{"
                        "\n\t\"type\":\"TDX Reference Value\","
                        "\n\t\"subtype\":\"%s\","
-                       "\n\t\"index\":\"%d\","
+                       "\n\t\"index\":%d,"
                        "\n\t\"sha384\":\"%s\","
                        "\n\t\"description\":\"%s: %s\""
                        "\n},\n",
