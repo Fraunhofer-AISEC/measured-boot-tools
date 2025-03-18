@@ -408,6 +408,7 @@ static void
 print_usage(const char *progname)
 {
     printf("\nUsage: %s [options...]\n", progname);
+    printf("\t-m,  --mrs <num[,num...]>\tMeasurement registers to be calculated\n");
     printf("\t     --tdxmodule <file>\t\tThe filename of the TDX-module binary\n");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
@@ -455,6 +456,9 @@ main(int argc, char *argv[])
     const char *dump_kernel_path = NULL;
     bool print_event_log = false;
     bool print_summary = false;
+    uint32_t *mr_nums = NULL;
+    size_t len_mr_nums = 0;
+    char *mr_str = NULL;
     const char *progname = argv[0];
     eventlog_t evlog = { .format = FORMAT_TEXT, .log = { 0 } };
     rtmr0_qemu_fw_cfg_files_t rtmr0_cfg = {
@@ -535,6 +539,22 @@ main(int argc, char *argv[])
             }
             argv += 2;
             argc -= 2;
+        } else if ((!strcmp(argv[0], "-m") || !strcmp(argv[0], "--mrs")) && argc >= 2) {
+            mr_str = (char *)malloc(strlen(argv[1]) + 1);
+            if (!mr_str) {
+                printf("Failed to allocate memory\n");
+                goto out;
+            }
+            strncpy(mr_str, argv[1], strlen(argv[1]) + 1);
+            char *pch = strtok(mr_str, ",");
+            while (pch) {
+                mr_nums = (uint32_t *)realloc(mr_nums, sizeof(uint32_t) * (len_mr_nums + 1));
+                mr_nums[len_mr_nums] = (uint32_t)strtol(pch, NULL, 0);
+                pch = strtok(NULL, ",");
+                len_mr_nums++;
+            }
+            argv += 2;
+            argc -= 2;
         } else if ((!strcmp(argv[0], "-e") || !strcmp(argv[0], "--eventlog"))) {
             print_event_log = true;
             argv++;
@@ -558,45 +578,57 @@ main(int argc, char *argv[])
         }
     }
 
-    if (!config_file) {
+    if (!config_file && contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
         printf("Config file must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (!kernel) {
+    if (!kernel && contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
         printf("Kernel must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (!ovmf) {
+    if (!ovmf && (contains(mr_nums, len_mr_nums, INDEX_MRTD) || contains(mr_nums, len_mr_nums, INDEX_MRTD))) {
         printf("OVMF must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (!tdx_module) {
+    if (!tdx_module && contains(mr_nums, len_mr_nums, INDEX_MRSEAM)) {
         printf("TDX-Module must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (!cmdline) {
+    if (!cmdline && contains(mr_nums, len_mr_nums, INDEX_RTMR2)) {
         printf("kernel cmdline must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (rtmr0_cfg.acpi_rsdp_size == -1) {
+    if (rtmr0_cfg.acpi_rsdp_size == -1  && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
         printf("Config file ACPI RSDP must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (rtmr0_cfg.acpi_tables_size == -1) {
+    if (rtmr0_cfg.acpi_tables_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
         printf("Config file ACPI tables must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (rtmr0_cfg.table_loader_size == -1) {
+    if (rtmr0_cfg.table_loader_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
         printf("Config file table loader must be specified\n");
         print_usage(progname);
         goto out;
+    }
+
+    if (len_mr_nums == 0) {
+        printf("No measurement registers specified. Nothing to do\n");
+        print_usage(progname);
+        goto out;
+    }
+    for (size_t i = 0; i < len_mr_nums; i++) {
+        if (mr_nums[i] >= MR_LEN) {
+            printf("Invalid measurement register number %d\n", mr_nums[i]);
+            goto out;
+        }
     }
 
     DEBUG("Calculating TDX measurement registers\n");
@@ -619,8 +651,12 @@ main(int argc, char *argv[])
     if (cmdline) {
         DEBUG("\tCmdline:    %s\n", cmdline);
     }
-    DEBUG("\tOVMF:       %s\n", ovmf);
-    DEBUG("\tTDX-Module: %s\n", tdx_module);
+    if (ovmf) {
+        DEBUG("\tOVMF:       %s\n", ovmf);
+    }
+    if (tdx_module) {
+        DEBUG("\tTDX-Module: %s\n", tdx_module);
+    }
     DEBUG("\tEventlog:   %d\n", print_event_log);
     DEBUG("\tSummary:    %d\n", print_summary);
     if (dump_kernel_path) {
@@ -629,34 +665,46 @@ main(int argc, char *argv[])
 
     uint8_t mrs[MR_LEN][SHA384_DIGEST_LENGTH];
 
-    if (calculate_mrseam(mrs[INDEX_MRSEAM], &evlog, tdx_module)) {
-        printf("Failed to calculate event log for MRSEAM\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_MRSEAM)) {
+        if (calculate_mrseam(mrs[INDEX_MRSEAM], &evlog, tdx_module)) {
+            printf("Failed to calculate event log for MRSEAM\n");
+            goto out;
+        }
     }
 
-    if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf)) {
-        printf("Failed to calculate event log for MRTD\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_MRTD)) {
+        if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf)) {
+            printf("Failed to calculate event log for MRTD\n");
+            goto out;
+        }
     }
 
-    if (calculate_rtmr0(mrs[INDEX_RTMR0], &evlog, ovmf, &rtmr0_cfg)) {
-        printf("Failed to calculate event log for RTMR 0\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
+        if (calculate_rtmr0(mrs[INDEX_RTMR0], &evlog, ovmf, &rtmr0_cfg)) {
+            printf("Failed to calculate event log for RTMR 0\n");
+            goto out;
+        }
     }
 
-    if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, &config, dump_kernel_path)) {
-        printf("Failed to calculate event log for RTMR 1\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
+        if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, &config, dump_kernel_path)) {
+            printf("Failed to calculate event log for RTMR 1\n");
+            goto out;
+        }
     }
 
-    if (calculate_rtmr2(mrs[INDEX_RTMR2], &evlog, cmdline)) {
-        printf("Failed to calculate event log for RTMR 2\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_RTMR2)) {
+        if (calculate_rtmr2(mrs[INDEX_RTMR2], &evlog, cmdline)) {
+            printf("Failed to calculate event log for RTMR 2\n");
+            goto out;
+        }
     }
 
-    if (calculate_rtmr3(mrs[INDEX_RTMR3], &evlog)) {
-        printf("Failed to calculate event log for RTMR 3\n");
-        goto out;
+    if (contains(mr_nums, len_mr_nums, INDEX_RTMR3)) {
+        if (calculate_rtmr3(mrs[INDEX_RTMR3], &evlog)) {
+            printf("Failed to calculate event log for RTMR 3\n");
+            goto out;
+        }
     }
 
     // Print event log with all extend operations if requested
@@ -665,17 +713,17 @@ main(int argc, char *argv[])
         if (evlog.format == FORMAT_JSON) {
             printf("[");
         }
-        for (size_t i = 0; i < MR_LEN; i++) {
-            if (!evlog.log[i]) {
+        for (size_t i = 0; i < len_mr_nums; i++) {
+            if (!evlog.log[mr_nums[i]]) {
                 DEBUG("No events for MR index %ld\n", i);
                 continue;
             }
             // Remove last colon on final event log entry if format is json
-            if (last_entry_json(&evlog, i)) {
-                evlog.log[i][strlen(evlog.log[i]) - 2] = ']';
-                evlog.log[i][strlen(evlog.log[i]) - 1] = '\0';
+            if (last_entry_json(&evlog, mr_nums[i])) {
+                evlog.log[mr_nums[i]][strlen(evlog.log[mr_nums[i]]) - 2] = ']';
+                evlog.log[mr_nums[i]][strlen(evlog.log[mr_nums[i]]) - 1] = '\0';
             }
-            printf("%s", evlog.log[i]);
+            printf("%s", evlog.log[mr_nums[i]]);
         }
         printf("\n");
     }
@@ -686,18 +734,18 @@ main(int argc, char *argv[])
         if (evlog.format == FORMAT_JSON) {
             printf("[");
         }
-        for (uint32_t i = 0; i < MR_LEN; i++) {
+        for (uint32_t i = 0; i < len_mr_nums; i++) {
             if (evlog.format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"subtype\":\"MR Summary\",\n\t\"index\":%d,\n\t\"sha384\":\"", i);
-                print_data_no_lf(mrs[i], SHA384_DIGEST_LENGTH, NULL);
-                printf("\",\n\t\"description\":\"%s\"\n}", index_to_mr(i));
-                if (i < MR_LEN - 1) {
+                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"subtype\":\"MR Summary\",\n\t\"index\":%d,\n\t\"sha384\":\"", mr_nums[i]);
+                print_data_no_lf(mrs[mr_nums[i]], SHA384_DIGEST_LENGTH, NULL);
+                printf("\",\n\t\"description\":\"%s\"\n}", index_to_mr(mr_nums[i]));
+                if (i < len_mr_nums - 1) {
                     printf(",\n");
                 }
             } else if (evlog.format == FORMAT_TEXT) {
-                printf("Name: %s", index_to_mr(i));
-                print_data(mrs[i], SHA384_DIGEST_LENGTH, NULL);
+                printf("Name: %s", index_to_mr(mr_nums[i]));
+                print_data(mrs[mr_nums[i]], SHA384_DIGEST_LENGTH, NULL);
             } else {
                 printf("Unknown output format\n");
                 goto out;
@@ -711,6 +759,10 @@ main(int argc, char *argv[])
     ret = 0;
 
 out:
+    if (mr_nums)
+        free(mr_nums);
+    if (mr_str)
+        free(mr_str);
     for (size_t i = 0; i < MR_LEN; i++) {
         if (evlog.log[i]) {
             free(evlog.log[i]);

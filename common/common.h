@@ -86,3 +86,6 @@ char16_strlen(const char16_t *str);
 
 char *
 convert_to_char(const char16_t *in, size_t *out_len);
+
+bool
+contains(uint32_t *pcr_nums, uint32_t len, uint32_t value);

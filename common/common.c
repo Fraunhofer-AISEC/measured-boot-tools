@@ -276,3 +276,14 @@ char16_strlen(const char16_t *str)
     }
     return len;
 }
+
+bool
+contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
+{
+    for (uint32_t i = 0; i < len; i++) {
+        if (pcr_nums[i] == value) {
+            return true;
+        }
+    }
+    return false;
+}

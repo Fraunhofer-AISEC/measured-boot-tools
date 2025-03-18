@@ -628,17 +628,6 @@ print_usage(const char *progname)
     printf("\n");
 }
 
-static bool
-contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
-{
-    for (uint32_t i = 0; i < len; i++) {
-        if (pcr_nums[i] == value) {
-            return true;
-        }
-    }
-    return false;
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -800,6 +789,13 @@ main(int argc, char *argv[])
         } else {
             printf("Invalid option %s or argument missing\n", argv[0]);
             print_usage(progname);
+            goto out;
+        }
+    }
+
+    for (size_t i = 0; i < len_pcr_nums; i++) {
+        if (pcr_nums[i] >= MAX_PCRS) {
+            printf("Invalid PCR number %d\n", pcr_nums[i]);
             goto out;
         }
     }
