@@ -2,7 +2,7 @@
 
 #pragma once
 
-#define MR_LEN 5
+#define MR_LEN 6
 
 // UEFI Spec 2.10 Section 38.4.1:
 // TPM PCR Index | CC Measurement Register Index | TDX-measurement register
@@ -16,6 +16,8 @@
 #define INDEX_RTMR1 2
 #define INDEX_RTMR2 3
 #define INDEX_RTMR3 4
+// Additional reference values, not part of UEFI spec
+#define INDEX_MRSEAM 5
 
 typedef enum { FORMAT_JSON, FORMAT_TEXT } format_t;
 

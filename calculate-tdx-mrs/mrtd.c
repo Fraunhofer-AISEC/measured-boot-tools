@@ -188,12 +188,16 @@ get_ovmf_metadata_offset(uint64_t *out_metadata_offset, uint8_t *raw_image, uint
 int
 measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t raw_image_size)
 {
+    DEBUG("Measuring OVMF size %ld\n", raw_image_size);
+
     uint64_t metadata_offset = 0;
     int ret = get_ovmf_metadata_offset(&metadata_offset, raw_image, raw_image_size);
     if (ret) {
         printf("failed to get metadata offset\n");
         return -1;
     }
+
+    DEBUG("OVMF metadata offset: %ld\n", metadata_offset);
 
     uint8_t desc_buf[sizeof(EFI_GUID) + sizeof(tdx_metadata_descriptor_t)] = { 0 };
     memcpy(desc_buf, raw_image + metadata_offset, sizeof(desc_buf));
@@ -271,8 +275,12 @@ measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t 
 
         uint64_t nr_pages = sec.memory_data_size / PAGE_SIZE;
 
+        DEBUG("Measure Offset %x, Size %x, GPA %lx, Memory Size %lx, Type %x, Attributes %x, NR pages: %ld\n",
+            sec.data_offset, sec.raw_data_size, sec.memory_address, sec.memory_data_size, sec.type, sec.attributes, nr_pages);
+
         for (uint64_t iter = 0; iter < nr_pages; iter++) {
             if ((sec.attributes & TDX_METADATA_ATTRIBUTES_EXTEND_MEM_PAGE_ADD) == 0) {
+                DEBUG("\tMEM.PAGE.ADD\n");
                 td_call_mem_page_add(buffer128, sec.memory_address + iter * PAGE_SIZE);
                 EVP_DigestUpdate(ctx, buffer128, MRTD_EXTENSION_BUFFER_SIZE);
             }
@@ -280,6 +288,7 @@ measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t 
             if (sec.attributes & TDX_METADATA_ATTRIBUTES_EXTENDMR) {
                 uint32_t granularity = TDH_MR_EXTEND_GRANULARITY;
                 uint32_t iteration = PAGE_SIZE / granularity;
+                DEBUG("\tMR.EXTEND %d pages\n", iteration);
                 for (uint32_t chunk_iter = 0; chunk_iter < iteration; chunk_iter++) {
                     td_call_mr_extend(
                         buffer3_128,

@@ -25,6 +25,8 @@ index_to_mr(uint32_t index)
         return "RTMR2";
     case INDEX_RTMR3:
         return "RTMR3";
+    case INDEX_MRSEAM:
+        return "MRSEAM";
     default:
         return "unknown";
     }

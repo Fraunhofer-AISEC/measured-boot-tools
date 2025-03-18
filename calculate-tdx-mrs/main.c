@@ -56,6 +56,31 @@ typedef struct {
 extern EFI_GUID gEfiImageSecurityDatabaseGuid;
 
 /**
+ * Calculates the measurement register for the TDX SEAM module (MRSEAM)
+ *
+ * The MRTD contains the digest of the TDX-module as measured by the SEAM loader
+ *
+ */
+static int
+calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module)
+{
+    memset(mr, 0x0, SHA384_DIGEST_LENGTH);
+
+    uint8_t hash_mrseam[SHA384_DIGEST_LENGTH];
+    int ret = hash_file(EVP_sha384(), hash_mrseam, tdx_module);
+    if (ret) {
+        printf("Failed to measure the TDX-module\n");
+        return -1;
+    }
+
+    evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam,
+              "SEAMLDR Measurement: TDX-Module");
+    memcpy(mr, hash_mrseam, SHA384_DIGEST_LENGTH);
+
+    return 0;
+}
+
+/**
  * Calculates the TDX Build-Time Measurement Register (MRTD)
  *
  * The MRTD contains the digest of the OVMF as hashed by the Intel TDX module.
@@ -383,9 +408,10 @@ static void
 print_usage(const char *progname)
 {
     printf("\nUsage: %s [options...]\n", progname);
+    printf("\t     --tdxmodule <file>\t\tThe filename of the TDX-module binary\n");
+    printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --ramdisk <file>\t\tThe filename of the initramfs\n");
-    printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-e,  --eventlog\t\t\tPrint detailed eventlog\n");
     printf("\t-s,  --summary\t\t\tPrint final MR values\n");
@@ -425,6 +451,7 @@ main(int argc, char *argv[])
     const char *ramdisk = NULL;
     const char *cmdline = NULL;
     const char *ovmf = NULL;
+    const char *tdx_module = NULL;
     const char *dump_kernel_path = NULL;
     bool print_event_log = false;
     bool print_summary = false;
@@ -463,6 +490,10 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if ((!strcmp(argv[0], "-o") || !strcmp(argv[0], "--ovmf")) && argc >= 2) {
             ovmf = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--tdxmodule") && argc >= 2) {
+            tdx_module = argv[1];
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
@@ -542,6 +573,11 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
+    if (!tdx_module) {
+        printf("TDX-Module must be specified\n");
+        print_usage(progname);
+        goto out;
+    }
     if (!cmdline) {
         printf("kernel cmdline must be specified\n");
         print_usage(progname);
@@ -576,21 +612,27 @@ main(int argc, char *argv[])
     }
 
     DEBUG("Using the following artifacts:\n");
-    DEBUG("\tKernel:    %s\n", kernel);
+    DEBUG("\tKernel:     %s\n", kernel);
     if (ramdisk) {
-        DEBUG("\tInitramfs: %s\n", ramdisk);
+        DEBUG("\tInitramfs:  %s\n", ramdisk);
     }
     if (cmdline) {
-        DEBUG("\tCmdline:   %s\n", cmdline);
+        DEBUG("\tCmdline:    %s\n", cmdline);
     }
-    DEBUG("\tOVMF:      %s\n", ovmf);
-    DEBUG("\tEventlog:  %d\n", print_event_log);
-    DEBUG("\tSummary:   %d\n", print_summary);
+    DEBUG("\tOVMF:       %s\n", ovmf);
+    DEBUG("\tTDX-Module: %s\n", tdx_module);
+    DEBUG("\tEventlog:   %d\n", print_event_log);
+    DEBUG("\tSummary:    %d\n", print_summary);
     if (dump_kernel_path) {
         DEBUG("\nKernel measurement dump path: %s\n", dump_kernel_path);
     }
 
     uint8_t mrs[MR_LEN][SHA384_DIGEST_LENGTH];
+
+    if (calculate_mrseam(mrs[INDEX_MRSEAM], &evlog, tdx_module)) {
+        printf("Failed to calculate event log for MRSEAM\n");
+        goto out;
+    }
 
     if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf)) {
         printf("Failed to calculate event log for MRTD\n");
@@ -625,7 +667,7 @@ main(int argc, char *argv[])
         }
         for (size_t i = 0; i < MR_LEN; i++) {
             if (!evlog.log[i]) {
-                DEBUG("No events for MR %ld\n", i);
+                DEBUG("No events for MR index %ld\n", i);
                 continue;
             }
             // Remove last colon on final event log entry if format is json
