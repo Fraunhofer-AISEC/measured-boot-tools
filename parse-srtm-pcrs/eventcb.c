@@ -55,9 +55,6 @@ event_uefi_post_code(void *data, const TCG_EVENT2 *const event);
 static bool
 event_gpt(void *d, UEFI_GPT_DATA *data, size_t size, uint32_t eventlog_version);
 
-static bool
-contains(uint32_t *pcr_nums, uint32_t len, uint32_t value);
-
 #define ADD_EVLOG(log, pcr_nums, len_pcr_nums, fmt, ...)                                           \
     do {                                                                                           \
         if (contains(pcr_nums, len_pcr_nums, active_pcr)) {                                        \
@@ -631,15 +628,4 @@ eventtype_to_string(UINT32 event_type)
     default:
         return "Unknown event type";
     }
-}
-
-static bool
-contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
-{
-    for (uint32_t i = 0; i < len; i++) {
-        if (pcr_nums[i] == value) {
-            return true;
-        }
-    }
-    return false;
 }
