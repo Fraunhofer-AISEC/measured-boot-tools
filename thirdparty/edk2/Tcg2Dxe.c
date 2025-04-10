@@ -123,6 +123,8 @@ int MeasureVariable(
     evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_DRIVER_CONFIG", hash, VarNameNarrow);
   } else if (EventType == EV_EFI_VARIABLE_BOOT) {
     evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash, VarNameNarrow);
+  } else if (EventType == EV_EFI_VARIABLE_AUTHORITY) {
+    evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_AUTHORITY", hash, VarNameNarrow);
   } else {
     printf("Unsupported event type 0x%x\n", EventType);
   }

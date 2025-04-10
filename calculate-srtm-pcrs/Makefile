@@ -12,20 +12,25 @@ ifeq ($(DEBUG_BUILD),y)
 	DEFINES += -DDEBUG_BUILD
 endif
 
-LFLAGS := -lcrypto
+LFLAGS := -lcrypto -lz
 
 ISRCS := \
 	./ \
+	../thirdparty \
 	../thirdparty/LzmaCustomDecompressLib \
 	../thirdparty/LzmaCustomDecompressLib/Sdk \
 	../thirdparty/LzmaCustomDecompressLib/Sdk/C \
 	../thirdparty/edk2 \
+	../thirdparty/tpm2-tools \
+	../thirdparty/tss2 \
 	../common
 
 CSRS := \
 	main.c \
 	eventlog.c \
 	paths.c \
+	pcrs.c \
+	gpt.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
 	../thirdparty/edk2/Tcg2Dxe.c \

@@ -79,7 +79,7 @@ char *
 convert_bin_to_hex(const uint8_t *bin, int length);
 
 char16_t *
-convert_to_char16(const char *in, size_t *out_len);
+convert_to_char16(const char *in, size_t in_len, size_t *out_len, size_t trailing_zeros);
 
 size_t
 char16_strlen(const char16_t *str);
@@ -89,3 +89,6 @@ convert_to_char(const char16_t *in, size_t *out_len);
 
 bool
 contains(uint32_t *pcr_nums, uint32_t len, uint32_t value);
+
+bool
+contains_str(const char **list, uint32_t len, const char *value);

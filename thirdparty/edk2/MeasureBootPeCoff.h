@@ -3,6 +3,7 @@
 #pragma once
 
 #include <openssl/evp.h>
+#include "UefiBaseType.h"
 
 // https://github.com/torvalds/linux/blob/master/Documentation/x86/boot.rst
 typedef enum __attribute__ ((__packed__))

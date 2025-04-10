@@ -73,8 +73,7 @@ calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module)
         return -1;
     }
 
-    evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam,
-              "SEAMLDR Measurement: TDX-Module");
+    evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam, "SEAMLDR Measurement: TDX-Module");
     memcpy(mr, hash_mrseam, SHA384_DIGEST_LENGTH);
 
     return 0;
@@ -353,13 +352,8 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file)
     }
     DEBUG("cmdline size: %ld\n", cmdline_size);
 
-    uint8_t cmdline_buf2[cmdline_size + 1];
-    memset(cmdline_buf2, 0x0, sizeof(cmdline_buf2));
-    memcpy(cmdline_buf2, cmdline_buf, cmdline_size);
-    cmdline_size++;
-
     size_t cmdline_len = 0;
-    char16_t *wcmdline = convert_to_char16((const char *)cmdline_buf2, &cmdline_len);
+    char16_t *wcmdline = convert_to_char16((const char *)cmdline_buf, cmdline_size, &cmdline_len, 1);
     if (!wcmdline) {
         printf("Failed to convert to wide character string\n");
         goto out;
@@ -588,7 +582,8 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (!ovmf && (contains(mr_nums, len_mr_nums, INDEX_MRTD) || contains(mr_nums, len_mr_nums, INDEX_MRTD))) {
+    if (!ovmf && (contains(mr_nums, len_mr_nums, INDEX_MRTD) ||
+                  contains(mr_nums, len_mr_nums, INDEX_MRTD))) {
         printf("OVMF must be specified\n");
         print_usage(progname);
         goto out;
@@ -603,7 +598,7 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (rtmr0_cfg.acpi_rsdp_size == -1  && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
+    if (rtmr0_cfg.acpi_rsdp_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
         printf("Config file ACPI RSDP must be specified\n");
         print_usage(progname);
         goto out;
@@ -737,7 +732,8 @@ main(int argc, char *argv[])
         for (uint32_t i = 0; i < len_mr_nums; i++) {
             if (evlog.format == FORMAT_JSON) {
                 printf(
-                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"subtype\":\"MR Summary\",\n\t\"index\":%d,\n\t\"sha384\":\"", mr_nums[i]);
+                    "{\n\t\"type\":\"TDX Reference Value\",\n\t\"subtype\":\"MR Summary\",\n\t\"index\":%d,\n\t\"sha384\":\"",
+                    mr_nums[i]);
                 print_data_no_lf(mrs[mr_nums[i]], SHA384_DIGEST_LENGTH, NULL);
                 printf("\",\n\t\"description\":\"%s\"\n}", index_to_mr(mr_nums[i]));
                 if (i < len_mr_nums - 1) {

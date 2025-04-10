@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "MeasureBootPeCoff.h"
+
 typedef struct {
     kernel_setup_hdr_t kernel_setup_hdr;
 } config_t;

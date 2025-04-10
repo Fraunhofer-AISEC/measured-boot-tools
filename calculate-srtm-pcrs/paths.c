@@ -39,7 +39,7 @@ calculate_path(char *path, uint8_t *pcr, eventlog_t *evlog)
     if (ret) {
         return -1;
     }
-    evlog_add(evlog, 9, "Path Measurement", hash, path);
+    evlog_add(evlog, 9, "EV_IPL", hash, path);
 
     hash_extend(EVP_sha256(), pcr, hash, SHA256_DIGEST_LENGTH);
 

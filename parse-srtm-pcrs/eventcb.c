@@ -20,7 +20,7 @@
 #include "hash.h"
 
 /* converting byte buffer to hex string requires 2x, plus 1 for '\0' */
-#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count)*2 + 1)
+#define BYTES_TO_HEX_STRING_SIZE(byte_count) ((byte_count) * 2 + 1)
 #define EVENT_BUF_MAX BYTES_TO_HEX_STRING_SIZE(1024)
 #define DIGEST_HEX_STRING_MAX BYTES_TO_HEX_STRING_SIZE(TPM2_MAX_DIGEST_BUFFER)
 #define MAX_PCRS 24
@@ -58,7 +58,7 @@ event_gpt(void *d, UEFI_GPT_DATA *data, size_t size, uint32_t eventlog_version);
 #define ADD_EVLOG(log, pcr_nums, len_pcr_nums, fmt, ...)                                           \
     do {                                                                                           \
         if (contains(pcr_nums, len_pcr_nums, active_pcr)) {                                        \
-            char s[1024] = { 0 };                                                                  \
+            char s[4096] = { 0 };                                                                  \
             int n = snprintf(s, sizeof(s), fmt, ##__VA_ARGS__);                                    \
             ASSERT(n > 0);                                                                         \
             mystrcat(&log[active_pcr], s);                                                         \
@@ -68,7 +68,7 @@ event_gpt(void *d, UEFI_GPT_DATA *data, size_t size, uint32_t eventlog_version);
 #define ADD_EVLOG_DESCRIPTION(log, pcr_nums, len_pcr_nums, format, fmt, ...)                       \
     do {                                                                                           \
         if (contains(pcr_nums, len_pcr_nums, active_pcr)) {                                        \
-            char s[1024] = { 0 };                                                                  \
+            char s[4096] = { 0 };                                                                  \
             int n = 0;                                                                             \
             if (format == FORMAT_JSON) {                                                           \
                 n = snprintf(s, sizeof(s), "\t\"description\":\"" fmt "\"\n},\n", ##__VA_ARGS__);  \
@@ -185,9 +185,10 @@ event2_header_cb(TCG_EVENT_HEADER2 const *eventhdr, size_t size, void *data_in)
     }
 
     if (cb_data->format == FORMAT_JSON) {
-        ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
-                  "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"%s\",\n\t\"index\":%d,\n",
-                  eventtype_to_string(eventhdr->EventType), eventhdr->PCRIndex);
+        ADD_EVLOG(
+            eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums,
+            "{\n\t\"type\":\"TPM Reference Value\",\n\t\"subtype\":\"%s\",\n\t\"index\":%d,\n",
+            eventtype_to_string(eventhdr->EventType), eventhdr->PCRIndex);
     } else {
         ADD_EVLOG(eventlog, cb_data->pcr_nums, cb_data->len_pcr_nums, "name: %s\n\tpcr: %d\n",
                   eventtype_to_string(eventhdr->EventType), eventhdr->PCRIndex);

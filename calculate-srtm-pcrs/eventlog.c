@@ -32,7 +32,7 @@ evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash
         return -1;
     }
 
-    char s[1024] = { 0 };
+    char s[4096] = { 0 };
     if (evlog->format == FORMAT_JSON) {
         ret = snprintf(s, sizeof(s),
                        "{"

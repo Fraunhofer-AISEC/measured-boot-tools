@@ -222,17 +222,17 @@ convert_bin_to_hex(const uint8_t *bin, int length)
 }
 
 char16_t *
-convert_to_char16(const char *in, size_t *out_len)
+convert_to_char16(const char *in, size_t in_len, size_t *out_len, size_t trailing_zeros)
 {
     // TODO Very simple conversion, but for now preferred over
     // iconv for machines that do not have UTF-16 available
     if (!in) {
         return NULL;
     }
-    size_t olen = strlen(in) * 2 + 2;
+    size_t olen = (in_len * 2) + trailing_zeros * sizeof(char16_t);
     char16_t *out = (char16_t *)malloc(olen);
     memset(out, 0x0, olen);
-    for (size_t i = 0; i < strlen(in) + 1; i++) {
+    for (size_t i = 0; i < in_len; i++) {
         out[i] = in[i];
     }
     if (out_len) {
@@ -282,6 +282,17 @@ contains(uint32_t *pcr_nums, uint32_t len, uint32_t value)
 {
     for (uint32_t i = 0; i < len; i++) {
         if (pcr_nums[i] == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+contains_str(const char **list, uint32_t len, const char *value)
+{
+    for (uint32_t i = 0; i < len; i++) {
+        if (!strcmp(list[i], value)) {
             return true;
         }
     }

@@ -275,8 +275,10 @@ measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t 
 
         uint64_t nr_pages = sec.memory_data_size / PAGE_SIZE;
 
-        DEBUG("Measure Offset %x, Size %x, GPA %lx, Memory Size %lx, Type %x, Attributes %x, NR pages: %ld\n",
-            sec.data_offset, sec.raw_data_size, sec.memory_address, sec.memory_data_size, sec.type, sec.attributes, nr_pages);
+        DEBUG(
+            "Measure Offset %x, Size %x, GPA %lx, Memory Size %lx, Type %x, Attributes %x, NR pages: %ld\n",
+            sec.data_offset, sec.raw_data_size, sec.memory_address, sec.memory_data_size, sec.type,
+            sec.attributes, nr_pages);
 
         for (uint64_t iter = 0; iter < nr_pages; iter++) {
             if ((sec.attributes & TDX_METADATA_ATTRIBUTES_EXTEND_MEM_PAGE_ADD) == 0) {

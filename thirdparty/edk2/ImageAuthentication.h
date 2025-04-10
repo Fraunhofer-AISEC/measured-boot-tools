@@ -25,6 +25,11 @@
     0x7cb8bdc9, 0xf8eb, 0x4f34, { 0xaa, 0xea, 0x3e, 0xe4, 0xaf, 0x65, 0x16, 0xa1 } \
   }
 
+#define EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL_GUID \
+{ \
+    0x605dab50, 0xe046, 0x4300, { 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23 } \
+}
+
 ///
 /// Varialbe name with guid EFI_IMAGE_SECURITY_DATABASE_GUID
 /// for the authorized signature database.
@@ -40,6 +45,8 @@
 /// for the timestamp signature database.
 ///
 #define EFI_IMAGE_SECURITY_DATABASE2  u"dbt"
+
+#define EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL  u"SbatLevel"
 
 #define SECURE_BOOT_MODE_ENABLE   1
 #define SECURE_BOOT_MODE_DISABLE  0
