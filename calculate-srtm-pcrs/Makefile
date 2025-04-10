@@ -12,7 +12,7 @@ ifeq ($(DEBUG_BUILD),y)
 	DEFINES += -DDEBUG_BUILD
 endif
 
-LFLAGS := -lcrypto -lz
+LFLAGS := -lcrypto
 
 ISRCS := \
 	./ \
