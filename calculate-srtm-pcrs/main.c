@@ -581,6 +581,10 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, char **path
             return -1;
         }
 
+        DEBUG("cmdline strlen: %lu\n", strlen(cmdline));
+        DEBUG("cmdline wchar len: %lu\n", cmdline_len);
+        print_data_debug((const uint8_t *)wcmdline, cmdline_len, "cmdline");
+
         uint8_t hash_ev_event_tag[SHA256_DIGEST_LENGTH];
         hash_buf(EVP_sha256(), hash_ev_event_tag, (uint8_t *)wcmdline, cmdline_len);
         evlog_add(evlog, 9, "EV_EVENT_TAG", hash_ev_event_tag, cmdline);
