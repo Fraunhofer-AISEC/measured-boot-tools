@@ -27,6 +27,7 @@ CSRS := \
 	eventlog.c \
 	td_hob.c \
 	mrtd.c \
+	mrs.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
 	../thirdparty/edk2/Tcg2Dxe.c \
