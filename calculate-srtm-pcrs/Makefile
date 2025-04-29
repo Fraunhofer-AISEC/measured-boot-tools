@@ -31,6 +31,7 @@ CSRS := \
 	paths.c \
 	pcrs.c \
 	gpt.c \
+	acpi.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
 	../thirdparty/edk2/Tcg2Dxe.c \

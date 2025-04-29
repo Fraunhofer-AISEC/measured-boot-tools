@@ -39,22 +39,7 @@
 #include "efi_boot.h"
 #include "pcrs.h"
 #include "gpt.h"
-
-const char *supported_ovmf_versions[] = { "edk2-stable202311", "edk2-stable202402",
-                                          "edk2-stable202405", "edk2-stable202408",
-                                          "edk2-stable202408.01" };
-
-const char *unsupported_ovmf_versions[] = {
-    "edk2-stable202202", // Not supported because it does not build with current toolchain
-    "edk2-stable202205", // Not supported because OVMF measures values of global variables
-    "edk2-stable202208",
-    "edk2-stable202211",
-    "edk2-stable202302",
-    "edk2-stable202305", // Since here, ACPI tables are measured into PCR 1
-    "edk2-stable202308"
-    "edk2-stable202411", // Not supported because OVMF measures other global variables
-    "edk2-stable202502"
-};
+#include "acpi.h"
 
 /**
  * Calculates PCR 0
@@ -187,36 +172,11 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // EV_PLATFORM_CONFIG_FLAGS: etc/table-loader
-    if (cfg->table_loader_size > 0) {
-        uint8_t hash_table_loader[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
-        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_table_loader, "etc/table-loader");
-        hash_extend(EVP_sha256(), pcr, hash_table_loader, SHA256_DIGEST_LENGTH);
-    }
-
-    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/rsdp
-    if (cfg->acpi_rsdp_size > 0) {
-        uint8_t hash_acpi_rsdp[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
-        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_rsdp, "etc/acpi/rsdp");
-        hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
-    }
-
-    // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
-    if (cfg->tpm_log_size > 0) {
-        uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
-        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
-        hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
-    }
-
-    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
-    if (cfg->acpi_tables_size > 0) {
-        uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
-        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables, "etc/acpi/tables");
-        hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
+    // EV_PLATFORM_CONFIG_FLAGS
+    ret = calculate_acpi_tables(pcr, evlog, cfg);
+    if (ret) {
+        printf("failed to calculate acpi tables\n");
+        goto out;
     }
 
     // EV_EFI_VARIABLE_BOOT Boot Order

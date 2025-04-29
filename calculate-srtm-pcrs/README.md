@@ -67,3 +67,15 @@ Therefore, for calculating PCR0 and PCR4, a configuration file path must be spec
 
 - [2] https://www.kernel.org/doc/html/latest/x86/boot.html?highlight=boot
 
+## Supported OVMF versions
+
+- Versions prior to edk2-stable202202 are untested
+- In versions between edk2-stable202205 and edk2-stable202302 the PEIFV measures the values of
+various global variables, when it measures itself. They are only supported in older versions of this
+software
+- Versions edk2-stable202311 to edk2-stable202408.01 are supported
+- Versions edk2-stable202411 and edk2-stable202502 introduce EFI delayed dispatch functionality.
+This might cause the global variable mAcpiTimerIoAddr to be measured, hindering reproducibility.
+This can be fixed through setting the ACPI timer IO address to a constant value or reverting
+OVMF commits d64d1e195ceb003c824786bfd817227c7ae81f06 and
+79598f34fa024ad2491b46b95c3189c5a7f159d2 if delayed dispatch functionality is not required.
