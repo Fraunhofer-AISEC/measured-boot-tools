@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <string.h>
 #include <openssl/evp.h>
+
+#include "common.h"
 #include "hash.h"
 
 #define FILE_CHUNK 1024
@@ -52,6 +54,22 @@ hash_file(const EVP_MD *md, uint8_t *file_hash, const char *filename)
     EVP_MD_CTX_free(ctx);
 
     fclose(f);
+    return 0;
+}
+
+int
+hash_and_dump(const EVP_MD *md, uint8_t *hash, uint8_t *data, size_t len, const char *dump_path)
+{
+    hash_buf(md, hash, data, len);
+
+    if (dump_path) {
+        if (write_file(data, len, dump_path)) {
+            printf("Failed to write hashed data to %s\n", dump_path);
+            return -1;
+        }
+        DEBUG("Wrote hashed data to %s\n", dump_path);
+    }
+
     return 0;
 }
 

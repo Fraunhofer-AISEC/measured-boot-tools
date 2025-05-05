@@ -322,7 +322,8 @@ main(int argc, char *argv[])
     }
 
     if (contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
-        if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, &config, dump_kernel_path, ovmf_version)) {
+        if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, &config, dump_kernel_path,
+                            ovmf_version)) {
             printf("Failed to calculate event log for RTMR 1\n");
             goto out;
         }

@@ -47,9 +47,3 @@ typedef struct {
 
 uint8_t *
 extract_lzma_fvmain_new (EFI_FIRMWARE_VOLUME_HEADER  *Fv, size_t *extracted_size);
-
-int
-measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_pei_path);
-
-int
-measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_dxe_path);

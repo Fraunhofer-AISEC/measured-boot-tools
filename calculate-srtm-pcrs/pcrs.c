@@ -82,23 +82,28 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
         goto out;
     }
 
-    // 128 KB Non-volatile data storage, 1712KB FVMAIN_COMPACT consisting of 896 KB PEIFV and 8192 DXEFV
-    uint64_t fvmain_compact_start = 128 * 1024;
-    uint64_t fvmain_compact_size = 1712 * 1024;
-    fvmain_compact_buf = malloc(fvmain_compact_size + 10000);
+    // OVMF Layout: Variable Store | FVMAIN_COMPACT | SECFV
+    EFI_FIRMWARE_VOLUME_HEADER *var_store_hdr = (EFI_FIRMWARE_VOLUME_HEADER *)ovmf_buf;
+    uint64_t fvmain_start = var_store_hdr->FvLength;
+    EFI_FIRMWARE_VOLUME_HEADER *fvmain_hdr =
+        (EFI_FIRMWARE_VOLUME_HEADER *)(ovmf_buf + fvmain_start);
+
+    DEBUG("FVMAIN_COMPACT Start: 0x%llx\n", var_store_hdr->FvLength);
+    DEBUG("FVMAIN_COMPACT Size: 0x%llx\n", fvmain_hdr->FvLength);
+
+    fvmain_compact_buf = malloc(fvmain_hdr->FvLength);
     if (!fvmain_compact_buf) {
         printf("Failed to allocate memory for FVMAIN_COMPACT.Fv\n");
         ret = -1;
         goto out;
     }
-    if (fvmain_compact_start > ovmf_size ||
-        fvmain_compact_size > (ovmf_size - fvmain_compact_start)) {
-        printf("OVMF smaller than expected (0x%lx, must at least be 0x%lx)\n", ovmf_size,
-               fvmain_compact_start + fvmain_compact_size);
+    if (fvmain_start > ovmf_size || fvmain_hdr->FvLength > (ovmf_size - fvmain_start)) {
+        printf("OVMF smaller than expected (0x%lx, must at least be 0x%llx)\n", ovmf_size,
+               fvmain_start + fvmain_hdr->FvLength);
         ret = -1;
         goto out;
     }
-    memcpy(fvmain_compact_buf, &ovmf_buf[fvmain_compact_start], fvmain_compact_size);
+    memcpy(fvmain_compact_buf, &ovmf_buf[fvmain_start], fvmain_hdr->FvLength);
 
     // Extract Firmware File System (FFS) and lzma-compressed file from FVMAIN_COMPACT
     EFI_FIRMWARE_VOLUME_HEADER *Fv = (EFI_FIRMWARE_VOLUME_HEADER *)fvmain_compact_buf;
@@ -111,8 +116,12 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
     }
 
     // Measure PEIFV
+    uint8_t *peifv = ((uint8_t *)fvmain + 0x80);
+    EFI_FIRMWARE_VOLUME_HEADER *pei_hdr = (EFI_FIRMWARE_VOLUME_HEADER *)peifv;
+    DEBUG("PEIFV length: %llx\n", pei_hdr->FvLength);
+
     uint8_t peifv_hash[SHA256_DIGEST_LENGTH];
-    ret = measure_peifv(peifv_hash, fvmain, dump_pei_path);
+    ret = hash_and_dump(EVP_sha256(), peifv_hash, peifv, pei_hdr->FvLength, dump_pei_path);
     if (ret) {
         printf("Failed to measure PEIFV\n");
         goto out;
@@ -121,8 +130,12 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
     hash_extend(EVP_sha256(), pcr, peifv_hash, SHA256_DIGEST_LENGTH);
 
     // Measure DXEFV
+    uint8_t *dxefv = ((uint8_t *)fvmain + pei_hdr->FvLength + 0x90);
+    EFI_FIRMWARE_VOLUME_HEADER *dxe_hdr = (EFI_FIRMWARE_VOLUME_HEADER *)dxefv;
+    DEBUG("DXEFV length: %llx\n", dxe_hdr->FvLength);
+
     uint8_t dxefv_hash[SHA256_DIGEST_LENGTH];
-    ret = measure_dxefv(dxefv_hash, fvmain, dump_dxe_path);
+    ret = hash_and_dump(EVP_sha256(), dxefv_hash, dxefv, dxe_hdr->FvLength, dump_dxe_path);
     if (ret) {
         printf("Failed to measure DXEFV\n");
         goto out;

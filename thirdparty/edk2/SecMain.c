@@ -40,7 +40,6 @@
 #include "SecMain.h"
 
 #include "common.h"
-#include "hash.h"
 #include "guid.h"
 
 #define EFI_FV_FILETYPE_FIRMWARE_VOLUME_IMAGE  0x0B
@@ -336,41 +335,3 @@ extract_lzma_fvmain_new (EFI_FIRMWARE_VOLUME_HEADER  *Fv, size_t *extracted_size
     return fvmain;
 }
 
-int
-measure_peifv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_pei_path)
-{
-    // Find PEIFV (header)
-    uint8_t *peifv = ((uint8_t *)fvmain + 0x80);
-    size_t peifv_size = 896 * 1024;
-
-    sha256(hash, peifv, peifv_size);
-
-    if (dump_pei_path) {
-        if (write_file(peifv, peifv_size, dump_pei_path)) {
-          printf("Failed to write PEIFV to %s\n", dump_pei_path);
-          return -1;
-        }
-        DEBUG("Wrote PEIFV to %s\n", dump_pei_path);
-    }
-
-    return 0;
-}
-
-int measure_dxefv(uint8_t hash[SHA256_DIGEST_LENGTH], uint8_t *fvmain, const char *dump_dxe_path)
-{
-    // Find DXE (header), DXE is located after the 896 KB of PEI
-    uint8_t *dxefv = ((uint8_t *)fvmain + 0x90 + 896 * 1024);
-    size_t dxefv_size = 0xE80000;
-
-    sha256(hash, dxefv, dxefv_size);
-
-    if (dump_dxe_path) {
-        if (write_file(dxefv, dxefv_size, dump_dxe_path)) {
-          printf("Failed to write DXEFV to %s\n", dump_dxe_path);
-          return -1;
-        }
-        DEBUG("Wrote DXEFV to %s\n", dump_dxe_path);
-    }
-
-    return 0;
-}

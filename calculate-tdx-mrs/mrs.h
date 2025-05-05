@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent */
 
+#pragma once
+
 typedef struct {
     uint8_t *acpi_tables;
     ssize_t acpi_tables_size;

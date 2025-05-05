@@ -39,6 +39,9 @@ hash_extend(const EVP_MD *md, uint8_t *pcr_value, uint8_t *pcr_extend, size_t le
 int
 hash_file(const EVP_MD *md, uint8_t *file_hash, const char *filename);
 
+int
+hash_and_dump(const EVP_MD *md, uint8_t *hash, uint8_t *data, size_t len, const char *dump_path);
+
 void
 sha256(uint8_t *hash, uint8_t *data, size_t len);
 

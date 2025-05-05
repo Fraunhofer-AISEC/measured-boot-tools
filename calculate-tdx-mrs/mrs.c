@@ -363,7 +363,8 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file)
     DEBUG("cmdline size: %ld\n", cmdline_size);
 
     size_t cmdline_len = 0;
-    char16_t *wcmdline = convert_to_char16((const char *)cmdline_buf, cmdline_size, &cmdline_len, 1);
+    char16_t *wcmdline =
+        convert_to_char16((const char *)cmdline_buf, cmdline_size, &cmdline_len, 1);
     if (!wcmdline) {
         printf("Failed to convert to wide character string\n");
         goto out;
