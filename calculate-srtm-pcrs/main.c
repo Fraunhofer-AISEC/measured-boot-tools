@@ -260,27 +260,6 @@ main(int argc, char *argv[])
         goto out;
     }
 
-    if (pcr1_cfg.acpi_rsdp_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
-        printf("PCR1 Config file ACPI RSDP must be specified to calculate PCR1\n");
-        print_usage(progname);
-        goto out;
-    }
-    if (pcr1_cfg.acpi_tables_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
-        printf("PCR1 Config file ACPI tables must be specified to calculate PCR1\n");
-        print_usage(progname);
-        goto out;
-    }
-    if (pcr1_cfg.table_loader_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
-        printf("PCR1 Config file table loader must be specified to calculate PCR1\n");
-        print_usage(progname);
-        goto out;
-    }
-    if (pcr1_cfg.tpm_log_size == -1 && contains(pcr_nums, len_pcr_nums, 1)) {
-        printf("PCR1 Config file TPM log must be specified to calculate PCR1\n");
-        print_usage(progname);
-        goto out;
-    }
-
     if (!kernel && !bootloaders && contains(pcr_nums, len_pcr_nums, 4)) {
         printf("Kernel/bootloader must be specified to calculate PCR4\n");
         print_usage(progname);

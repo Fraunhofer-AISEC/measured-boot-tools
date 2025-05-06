@@ -32,20 +32,20 @@ calculate_acpi_tables(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
         hash_extend(EVP_sha256(), pcr, hash_acpi_rsdp, SHA256_DIGEST_LENGTH);
     }
 
-    // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
-    if (cfg->tpm_log_size > 0) {
-        uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
-        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
-        hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
-    }
-
     // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
     if (cfg->acpi_tables_size > 0) {
         uint8_t hash_acpi_tables[SHA256_DIGEST_LENGTH];
         hash_buf(EVP_sha256(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
         evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables, "etc/acpi/tables");
         hash_extend(EVP_sha256(), pcr, hash_acpi_tables, SHA256_DIGEST_LENGTH);
+    }
+
+    // EV_PLATFORM_CONFIG_FLAGS: etc/tpm/log
+    if (cfg->tpm_log_size > 0) {
+        uint8_t hash_tpm_log[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_tpm_log, cfg->tpm_log, cfg->tpm_log_size);
+        evlog_add(evlog, 1, "EV_PLATFORM_CONFIG_FLAGS", hash_tpm_log, "etc/tpm/log");
+        hash_extend(EVP_sha256(), pcr, hash_tpm_log, SHA256_DIGEST_LENGTH);
     }
 
     return 0;
