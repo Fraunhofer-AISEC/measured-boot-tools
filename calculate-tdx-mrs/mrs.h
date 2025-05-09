@@ -26,7 +26,7 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, config_
                 const char *dump_kernel_path, const char *ovmf_version);
 
 int
-calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file);
+calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t trailing_zeros);
 
 int
 calculate_rtmr3(uint8_t *mr, eventlog_t *evlog);
