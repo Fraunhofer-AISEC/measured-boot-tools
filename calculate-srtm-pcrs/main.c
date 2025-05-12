@@ -41,7 +41,7 @@ print_usage(const char *progname)
         "\t     --bootloader\t\t\tBootloader EFI image to be measured into PCR4 (multiple --bootloader possible)\n");
     printf("\t     --grubcmds\t\t\tPath to GRUB command file file for PCR8\n");
     printf("\t     --cmdline\t\t\tKernel commandline, required for some PCR 9 calculations\n");
-    printf("\t     --addzero\t\t\tAdd trailing zero to kernel cmdline\n");
+    printf("\t     --addzeros <num>\t\tAdd <num> trailing zeros to kernel cmdline (default: 1)\n");
     printf("\t     --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
     printf("\t     --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t     --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
@@ -69,7 +69,7 @@ main(int argc, char *argv[])
     const char *sbat_level = NULL;
     const char *dump_pei_path = NULL;
     const char *dump_dxe_path = NULL;
-    size_t cmdline_trailing_zeros = 0;
+    ssize_t cmdline_trailing_zeros = 1;
     bool print_event_log = false;
     bool print_summary = false;
     bool print_aggregate = false;
@@ -179,10 +179,15 @@ main(int argc, char *argv[])
             cmdline = argv[1];
             argv += 2;
             argc -= 2;
-        } else if (!strcmp(argv[0], "--addzero")) {
-            cmdline_trailing_zeros = 1;
-            argv++;
-            argc--;
+        } else if (!strcmp(argv[0], "--addzeros") && argc >= 2) {
+            long num = (size_t)strtol(argv[1], NULL, 0);
+            if (num < 0) {
+                printf("trailing zeros value %ld is invalid\n", num);
+                return -1;
+            }
+            cmdline_trailing_zeros = (size_t)num;
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--acpirsdp") && argc >= 2) {
             pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
             if (pcr1_cfg.acpi_rsdp_size < 0) {

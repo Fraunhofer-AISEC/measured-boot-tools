@@ -48,7 +48,7 @@ print_usage(const char *progname)
     printf("\t     --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-c,  --config\t\t\tPath to configuration file\n");
     printf("\t     --cmdline\t\t\tKernel commandline\n");
-    printf("\t     --addzero\t\t\tAdd trailing zero to kernel cmdline\n");
+    printf("\t     --addzeros <num>\t\tAdd <num> trailing zeros to kernel cmdline (default: 1)\n");
     printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for RTMR0\n");
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for RTMR0\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for RTMR0\n");
@@ -85,7 +85,7 @@ main(int argc, char *argv[])
     const char *tdx_module = NULL;
     const char *dump_kernel_path = NULL;
     const char *ovmf_version = "edk2-stable202502";
-    size_t cmdline_trailing_zeros = 0;
+    size_t cmdline_trailing_zeros = 1;
     bool print_event_log = false;
     bool print_summary = false;
     uint32_t *mr_nums = NULL;
@@ -120,10 +120,15 @@ main(int argc, char *argv[])
             cmdline = argv[1];
             argv += 2;
             argc -= 2;
-        } else if (!strcmp(argv[0], "--addzero")) {
-            cmdline_trailing_zeros = 1;
-            argv++;
-            argc--;
+        } else if (!strcmp(argv[0], "--addzeros") && argc >= 2) {
+            long num = (size_t)strtol(argv[1], NULL, 0);
+            if (num < 0) {
+                printf("trailing zeros value %ld is invalid\n", num);
+                return -1;
+            }
+            cmdline_trailing_zeros = (size_t)num;
+            argv += 2;
+            argc -= 2;
         } else if ((!strcmp(argv[0], "-r") || !strcmp(argv[0], "--ramdisk")) && argc >= 2) {
             ramdisk = argv[1];
             argv += 2;
