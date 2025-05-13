@@ -1,8 +1,9 @@
 *.o
 .vscode/
-parse-srtm-pcrs/parse-srtm-pcrs
+calculate-ima-pcr/calculate-ima-pcr
+calculate-snp-mr/calculate-snp-mr
 calculate-srtm-pcrs/calculate-srtm-pcrs
 calculate-tdx-mrs/calculate-tdx-mrs
 parse-ima-pcr/parse-ima-pcr
-calculate-ima-pcr/calculate-ima-pcr
+parse-srtm-pcrs/parse-srtm-pcrs
 pcr-extend/pcr-extend
