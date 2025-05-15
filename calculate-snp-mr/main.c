@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "hash.h"
+#include "main.h"
 #include "snp.h"
 
 volatile bool debug_output = false;
@@ -35,9 +36,20 @@ print_usage(const char *progname)
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --initrd <file>\t\tThe filename of the initramfs\n");
     printf("\t     --cmdline\t\t\tKernel commandline\n");
-    printf("\t     --vcpus <num>\t\tUse <num> vCPUS\n");
+    printf("\t     --vcpus <num>\t\tUse <num> vCPUs (default: 1)\n");
+    printf("\t     --vmm-type <type>\t\tVMM type to use (qemu, ec2)\n");
     printf("\t     --verbose\t\t\tPrint verbose debug output\n");
     printf("\n");
+}
+
+vmm_type_t get_vmm_type(const char *s) {
+    if (strcmp(s, "qemu") == 0) {
+        return qemu;
+    } else if (strcmp(s, "ec2") == 0) {
+        return ec2;
+    } else {
+        return unknown;
+    }
 }
 
 int
@@ -48,7 +60,8 @@ main(int argc, char *argv[])
     const char *initrd = NULL;
     const char *cmdline = NULL;
     const char *ovmf = NULL;
-    size_t vcpus = 0;
+    size_t vcpus = 1;
+    vmm_type_t vmm_type = qemu;
     uint8_t mr[SHA384_DIGEST_LENGTH];
     const char *progname = argv[0];
 
@@ -76,9 +89,19 @@ main(int argc, char *argv[])
             long num = (size_t)strtol(argv[1], NULL, 0);
             if (num <= 0) {
                 printf("invalid vcpus value '%ld'\n", num);
-                return -1;
+                print_usage(progname);
+                goto out;
             }
             vcpus = (size_t)num;
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--vmm-type") && argc >= 2) {
+            vmm_type = get_vmm_type(argv[1]);
+            if (vmm_type == unknown) {
+                printf("invalid vmm type: %s\n", argv[1]);
+                print_usage(progname);
+                goto out;
+            }
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--verbose")) {
@@ -114,7 +137,7 @@ main(int argc, char *argv[])
         DEBUG("\tOVMF:       %s\n", ovmf);
     }
 
-    if (calculate_mr(mr, ovmf, kernel, initrd, cmdline, vcpus)) {
+    if (calculate_mr(mr, ovmf, kernel, initrd, cmdline, vcpus, vmm_type)) {
         printf("Failed to calculate snp measurement\n");
         goto out;
     }

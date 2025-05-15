@@ -24,6 +24,8 @@
 
 #include "common.h"
 #include "hash.h"
+#include "main.h"
+#include "snp.h"
 
 typedef struct __attribute__((__packed__)) snp_launch_update_page_info_t // digest
 {
@@ -189,7 +191,7 @@ struct sev_hash_table {
 } __packed;
 
 static void
-vmcb_save_area_init(uint8_t *page, uint64_t eip)
+vmcb_save_area_init(uint8_t *page, uint64_t eip, vmm_type_t vmm_type)
 {
     struct vmcb_save_area *save = (void *)page;
 
@@ -202,7 +204,6 @@ vmcb_save_area_init(uint8_t *page, uint64_t eip)
     save->cs.attrib = 0x9b;
     save->cs.limit = 0xffff;
     save->cs.base = eip & 0xffff0000;
-    save->ss.attrib = 0x93;
     save->ss.limit = 0xffff;
     save->ds.attrib = 0x93;
     save->ds.limit = 0xffff;
@@ -214,7 +215,6 @@ vmcb_save_area_init(uint8_t *page, uint64_t eip)
     save->ldtr.attrib = 0x82;
     save->ldtr.limit = 0xffff;
     save->idtr.limit = 0xffff;
-    save->tr.attrib = 0x8b;
     save->tr.limit = 0xffff;
     save->efer = 0x1000;
     save->cr4 = 0x40;
@@ -224,11 +224,26 @@ vmcb_save_area_init(uint8_t *page, uint64_t eip)
     save->rflags = 0x2;
     save->rip = eip & 0xffff;
     save->g_pat = 0x7040600070406;
-    save->rdx = 0x800f12; // For CPU type EpycV4, will crash for other CPU types
     save->sev_features = 0x1;
     save->xcr0 = 0x1;
-    save->mxcsr = 0x1f80;
-    save->x87_fcw = 0x37f;
+
+    if (vmm_type == qemu) {
+        save->ss.attrib = 0x93;
+        save->tr.attrib = 0x8b;
+        save->rdx = 0x800f12; // For CPU type EpycV4, will crash for other CPU types
+        save->mxcsr = 0x1f80;
+        save->x87_fcw = 0x37f;
+    } else if (vmm_type == ec2) {
+        if (eip == 0xfffffff0) {
+            save->cs.attrib = 0x9a;
+        }
+        save->ss.attrib = 0x92;
+        save->tr.attrib = 0x83;
+        save->rdx = 0x0;
+        save->mxcsr = 0x0;
+        save->x87_fcw = 0x0;
+    }
+
 }
 
 static const char *
@@ -339,7 +354,7 @@ hashes_init(uint8_t *page, uint8_t *cmdline, size_t cmdline_size, const char *ke
 
 int
 calculate_mr(uint8_t *mr, const char *ovmf_file, const char *kernel_file, const char *initrd_file,
-             const char *cmdline_file, size_t vcpus)
+             const char *cmdline_file, size_t vcpus, vmm_type_t vmm_type)
 {
     snp_launch_update_page_info info;
     uint8_t *ovmf = NULL;
@@ -390,7 +405,10 @@ calculate_mr(uint8_t *mr, const char *ovmf_file, const char *kernel_file, const 
         page_info_update(&info, NULL, SNP_PAGE_TYPE_ZERO, gpa);
 
     page_info_update(&info, NULL, SNP_PAGE_TYPE_SECRETS, 0x0080d000);
-    page_info_update(&info, NULL, SNP_PAGE_TYPE_CPUID, 0x0080e000);
+
+    if (vmm_type == qemu) {
+        page_info_update(&info, NULL, SNP_PAGE_TYPE_CPUID, 0x0080e000);
+    }
 
     if (kernel_file) {
         page_info_update(&info, NULL, SNP_PAGE_TYPE_ZERO, 0x80f000);
@@ -402,12 +420,17 @@ calculate_mr(uint8_t *mr, const char *ovmf_file, const char *kernel_file, const 
             page_info_update(&info, NULL, SNP_PAGE_TYPE_ZERO, gpa);
     }
 
-    vmcb_save_area_init(vmsa, 0xfffffff0);
+    if (vmm_type == ec2) {
+        page_info_update(&info, NULL, SNP_PAGE_TYPE_CPUID, 0x0080e000);
+    }
+
+    vmcb_save_area_init(vmsa, 0xfffffff0, vmm_type);
     page_info_update(&info, vmsa, SNP_PAGE_TYPE_VMSA, 0xfffffffff000);
 
-    vmcb_save_area_init(vmsa, 0x80b004);
+    vmcb_save_area_init(vmsa, 0x80b004, vmm_type);
     for (size_t i = 1; i < vcpus; i++)
         page_info_update(&info, vmsa, SNP_PAGE_TYPE_VMSA, 0xfffffffff000);
+
 
     memcpy(mr, info.digest_cur, SHA384_DIGEST_LENGTH);
 
