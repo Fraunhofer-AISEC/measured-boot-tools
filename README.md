@@ -1,12 +1,12 @@
-# TPM PCR Tools
+# Measured Boot Tools
 
 > :warning: **Note:** These tools are work in progress and not to be used in production!
 
 ## Overview
 
-These tools parse and pre-calculate the values of Trusted Platform Module (TPM) Platform
+These tools parse or precompute the values of Trusted Platform Module (TPM) Platform
 Configuration Registers (PCRs), as well as the measurement registers (MRTD and RTMRs) of
-Intel TDX-based platforms.
+Intel TDX-based platforms and AMD SEV-SNP-based platforms.
 
 The calculation tools can be used to calculate the golden reference values for remote attestation
 based on the built UEFI firmware, Linux kernel, kernel commandline and configuration parameters.
@@ -25,6 +25,10 @@ The tools build upon various other open source projects:
 **calculate-ima-pcr** calculates the expected IMA eventlog based on a list of user space software
 components. Note that the order on running systems might differ as the execution of user space
 binaries cannot be predicted.
+
+**calculate-snp-mr** calculates the expected hash of the AMD SEV-SNP measurement register based
+on the OVMF and optionally kernel, cmdline and initrd. Currently works for QEMU and ec2 instances
+and EPYC-v4 CPUs.
 
 **calculate-srtm-pcrs** calculates the expected SRTM PCR eventlog and final PCR values based on
 software components, such as the firmware and the kernel. The tool takes the compiled versions of
