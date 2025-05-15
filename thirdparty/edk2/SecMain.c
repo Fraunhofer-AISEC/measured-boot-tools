@@ -8,10 +8,10 @@
   Copyright (c) 2022, Fraunhofer AISEC
   Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.<BR>
 
-  This is a strongly modified version of the original file to be used
-  in the tpm-pcr-tools. The purpose is to measure the OVMF PEI Firmware Volume
-  as well as the OVMF DXE Firmware Volume to pre-calculate the hashes which are
-  expected to be extended into the TPM PCR0 during a measured boot.
+  This is a strongly modified version of the original file. The purpose
+  is to measure the OVMF PEI Firmware Volume as well as the OVMF DXE
+  Firmware Volume to pre-calculate the hashes which are expected to be
+  extended into the TPM PCR0 during a measured boot.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 

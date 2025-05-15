@@ -7,8 +7,7 @@ Copyright (c) 2015 - 2019, Intel Corporation. All rights reserved.<BR>
 Copyright (c) 2022, Fraunhofer AISEC
 Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.<BR>
 
-This file was heavily modified to be used within the tpm-pcr-tools. Its only
-purpose is now to measure an EFI variable.
+This file was heavily modified. Its only purpose is to measure an EFI variable.
 
 SPDX-License-Identifier: BSD-2-Clause-Patent
 

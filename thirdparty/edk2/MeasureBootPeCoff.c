@@ -11,10 +11,9 @@
   Copyright (c) 2022, Fraunhofer AISEC
   Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.<BR>
 
-  This is a strongly modified version of the original file to be used within
-  the tpm-pcr-tools. Its purpose is to measure the kernel PE/COFF image
-  and pre-calculate the hash which is expected to be extended into the
-  TPM PCR4 during a measured boot.
+  This is a strongly modified version of the original file. Its purpose is
+  to measure the kernel PE/COFF image and precompute the hash which is
+  expected to be extended into theTPM PCR4 during a measured boot.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 

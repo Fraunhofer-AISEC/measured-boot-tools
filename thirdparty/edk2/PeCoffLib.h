@@ -11,7 +11,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 Copyright (c) 2022, Fraunhofer AISEC
 Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.<BR>
 
-This file was modified to be used within the tpm-pcr-tools.
+This file was modified for usage in this project.
 
 **/
 
