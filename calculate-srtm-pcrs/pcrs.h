@@ -27,7 +27,7 @@ int
 calculate_pcr3(uint8_t *pcr, eventlog_t *evlog);
 
 int
-calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, config_t *config,
+calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
                const char **bootloader_files, size_t num_bootloader_files);
 
 int

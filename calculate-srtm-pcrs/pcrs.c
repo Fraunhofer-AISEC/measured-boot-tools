@@ -339,7 +339,7 @@ calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
  * @param kernel_file The path of the kernel image (.bzImage) to use for the calculations
  */
 int
-calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, config_t *config,
+calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
                const char **bootloader_files, size_t num_bootloader_files)
 {
     int ret = -1;
@@ -364,8 +364,18 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, config_
             return -1;
         }
 
-        if (config) {
-            ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, config);
+        if (config_file) {
+                // Load configuration variables
+                config_t config = { 0 };
+                if (config_file) {
+                    ret = config_load(&config, config_file);
+                    if (ret != 0) {
+                        printf("Failed to load kernel setup header configuration\n");
+                        return -1;
+                    }
+                }
+
+            ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, &config);
             if (ret != 0) {
                 printf("Failed to prepare kernel PE/COFF image\n");
                 free(kernel_buf);

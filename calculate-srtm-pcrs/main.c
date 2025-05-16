@@ -259,12 +259,6 @@ main(int argc, char *argv[])
         }
     }
 
-    if (!config_file && contains(pcr_nums, len_pcr_nums, 4)) {
-        printf("Config file must be specified to calculate PCR4\n");
-        print_usage(progname);
-        goto out;
-    }
-
     if (!kernel && !bootloaders && contains(pcr_nums, len_pcr_nums, 4)) {
         printf("Kernel/bootloader must be specified to calculate PCR4\n");
         print_usage(progname);
@@ -279,16 +273,6 @@ main(int argc, char *argv[])
         printf("Kernel cmdline must be specified for calculating PCR9\n");
         print_usage(progname);
         goto out;
-    }
-
-    // Load configuration variables
-    config_t config = { 0 };
-    if (config_file) {
-        ret = config_load(&config, config_file);
-        if (ret != 0) {
-            printf("Failed to load configuration\n");
-            goto out;
-        }
     }
 
     DEBUG("Calculating PCRs [ ");
@@ -351,7 +335,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 4)) {
-        if (calculate_pcr4(pcr[4], &evlog, kernel, &config, (const char **)bootloaders,
+        if (calculate_pcr4(pcr[4], &evlog, kernel, config_file, (const char **)bootloaders,
                            num_bootloaders)) {
             printf("Failed to calculate event log for PCR 4\n");
             goto out;
