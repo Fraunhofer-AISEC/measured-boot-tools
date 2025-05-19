@@ -696,6 +696,16 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
             goto out;
         }
 
+        // OvmfPkg/Library/X86QemuLoadImageLib/X86QemuLoadImageLib.c#L570
+        // OVMF appends initrd=initrd if initial ramdisk was specified
+        if (initrd) {
+            uint64_t old_size = cmdline_size;
+            const char *append = " initrd=initrd";
+            cmdline_size += strlen(append);
+            cmdline_buf = (uint8_t *)realloc(cmdline_buf, cmdline_size);
+            memcpy(cmdline_buf + old_size, append, strlen(append));
+        }
+
         char *cmdline_str = (char *)malloc(cmdline_size + 1);
         memset(cmdline_str, 0x0, cmdline_size + 1);
         memcpy(cmdline_str, cmdline_buf, cmdline_size);
