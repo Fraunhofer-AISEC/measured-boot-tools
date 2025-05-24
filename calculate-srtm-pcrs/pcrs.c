@@ -198,7 +198,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
              sizeof(efi_variable_boot));
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
-              "Hash EFI Variable Boot: Hash(0000)");
+              "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
 
     // EV_EFI_VARIABLE_BOOT Boot0000
