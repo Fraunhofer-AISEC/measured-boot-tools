@@ -42,7 +42,9 @@ print_usage(const char *progname)
     printf("\n");
 }
 
-vmm_type_t get_vmm_type(const char *s) {
+vmm_type_t
+get_vmm_type(const char *s)
+{
     if (strcmp(s, "qemu") == 0) {
         return qemu;
     } else if (strcmp(s, "ec2") == 0) {

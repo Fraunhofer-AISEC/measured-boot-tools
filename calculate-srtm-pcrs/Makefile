@@ -34,7 +34,6 @@ CSRS := \
 	acpi.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
-	../thirdparty/edk2/Tcg2Dxe.c \
 	../thirdparty/LzmaCustomDecompressLib/LzmaDecompress.c \
 	../thirdparty/LzmaCustomDecompressLib/Sdk/C/Bra86.c \
 	../thirdparty/LzmaCustomDecompressLib/Sdk/C/LzFind.c \
@@ -44,6 +43,7 @@ CSRS := \
 	../common/guid.c \
 	../common/hash.c \
 	../common/kernel_config.c \
+	../common/secureboot.c \
 
 IFLAGS := $(ISRCS:%=-I%)
 

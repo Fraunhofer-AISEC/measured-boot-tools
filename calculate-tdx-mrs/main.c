@@ -39,7 +39,8 @@ print_usage(const char *progname)
     printf("\t-m,  --mrs <num[,num...]>\tMeasurement registers to be calculated\n");
     printf("\t     --tdxmodule <file>\t\tThe filename of the TDX-module binary\n");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
-    printf("\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
+    printf(
+        "\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --ramdisk <file>\t\tThe filename of the initramfs\n");
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");

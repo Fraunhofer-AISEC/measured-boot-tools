@@ -243,7 +243,6 @@ vmcb_save_area_init(uint8_t *page, uint64_t eip, vmm_type_t vmm_type)
         save->mxcsr = 0x0;
         save->x87_fcw = 0x0;
     }
-
 }
 
 static const char *
@@ -430,7 +429,6 @@ calculate_mr(uint8_t *mr, const char *ovmf_file, const char *kernel_file, const 
     vmcb_save_area_init(vmsa, 0x80b004, vmm_type);
     for (size_t i = 1; i < vcpus; i++)
         page_info_update(&info, vmsa, SNP_PAGE_TYPE_VMSA, 0xfffffffff000);
-
 
     memcpy(mr, info.digest_cur, SHA384_DIGEST_LENGTH);
 

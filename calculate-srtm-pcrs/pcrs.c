@@ -27,7 +27,6 @@
 #include "PeCoffLib.h"
 #include "PiFirmwareVolume.h"
 #include "MeasureBootPeCoff.h"
-#include "Tcg2Dxe.h"
 #include "SecMain.h"
 #include "ImageAuthentication.h"
 
@@ -40,6 +39,7 @@
 #include "pcrs.h"
 #include "gpt.h"
 #include "acpi.h"
+#include "secureboot.h"
 
 /**
  * Calculates PCR 0
@@ -179,8 +179,8 @@ out:
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16_t *boot_order, size_t len_boot_order,
-    char **bootxxxx, size_t num_bootxxxx)
+calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16_t *boot_order,
+               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx)
 {
     int ret = -1;
 
@@ -194,9 +194,10 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16
     }
 
     // EV_EFI_VARIABLE_BOOT Boot Order
-    print_data((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "XXX BOOT ORDER");
+    print_data_debug((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "BOOT ORDER");
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)boot_order, len_boot_order * sizeof(uint16_t));
+    hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)boot_order,
+             len_boot_order * sizeof(uint16_t));
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
               "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
@@ -212,7 +213,7 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16
         uint8_t hash_efi_variable_boot0000[SHA256_DIGEST_LENGTH];
         hash_buf(EVP_sha256(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
         evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
-                "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+                  "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
         hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot0000, SHA256_DIGEST_LENGTH);
         free(efi_variable_boot0000);
     } else {
@@ -226,10 +227,12 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16
                 goto out;
             }
             // Extract data from efivars files
-            hash_buf(EVP_sha256(), hash_efi_variable_bootxxxx, file_buf + 4, file_size -4);
+            print_data_debug(file_buf + 4, file_size - 4, "Boot####");
+            hash_buf(EVP_sha256(), hash_efi_variable_bootxxxx, file_buf + 4, file_size - 4);
             evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_bootxxxx,
-                "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+                      "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
             hash_extend(EVP_sha256(), pcr, hash_efi_variable_bootxxxx, SHA256_DIGEST_LENGTH);
+            free(file_buf);
         }
     }
 
@@ -249,7 +252,6 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16
 out:
     if (ev_separator)
         OPENSSL_free(ev_separator);
-
     return ret;
 }
 
@@ -413,15 +415,15 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
         }
 
         if (config_file) {
-                // Load configuration variables
-                config_t config = { 0 };
-                if (config_file) {
-                    ret = config_load(&config, config_file);
-                    if (ret != 0) {
-                        printf("Failed to load kernel setup header configuration\n");
-                        return -1;
-                    }
+            // Load configuration variables
+            config_t config = { 0 };
+            if (config_file) {
+                ret = config_load(&config, config_file);
+                if (ret != 0) {
+                    printf("Failed to load kernel setup header configuration\n");
+                    return -1;
                 }
+            }
 
             ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, &config);
             if (ret != 0) {
@@ -596,15 +598,15 @@ calculate_pcr6(uint8_t *pcr, eventlog_t *evlog)
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level)
+calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level, const char *secure_boot,
+               const char *pk, const char *kek, const char *db, const char *dbx)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // TODO: Support enabled secure boot
-
     // Measure UEFI Secure Boot Variables: SecureBoot, PK, KEK, db, dbx
-    EFI_STATUS status = MeasureAllSecureVariables(EVP_sha256(), pcr, 7, evlog);
-    if (status != EFI_SUCCESS) {
+    int ret =
+        measure_secure_boot_variables(EVP_sha256(), pcr, 7, evlog, secure_boot, pk, kek, db, dbx);
+    if (ret) {
         printf("Failed to measure secure boot variables\n");
         return -1;
     }
@@ -626,13 +628,17 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level)
     if (sbat_level) {
         EFI_GUID efiImageSecurityDatabase1SbatLevelGuid =
             EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL_GUID;
-        ;
-        status = MeasureVariable(EVP_sha256(), pcr, 7, evlog, EV_EFI_VARIABLE_AUTHORITY,
-                                 EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL,
-                                 &efiImageSecurityDatabase1SbatLevelGuid, (char *)sbat_level,
-                                 strlen(sbat_level));
-        if (status != EFI_SUCCESS) {
-            printf("Failed to measure dbx authority\n");
+
+        variable_type_t var = { .event_type = "EV_EFI_VARIABLE_AUTHORITY",
+                                .variable_name = EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL,
+                                .vendor_guid = &efiImageSecurityDatabase1SbatLevelGuid,
+                                .path = NULL,
+                                .data = (uint8_t *)sbat_level,
+                                .data_size = strlen(sbat_level) };
+
+        ret = measure_variable(EVP_sha256(), pcr, 7, evlog, var);
+        if (ret) {
+            printf("Failed to measure sbatlevel variable\n");
             return -1;
         }
     }

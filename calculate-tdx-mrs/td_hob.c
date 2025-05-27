@@ -14,7 +14,6 @@
 #include "PiFirmwareVolume.h"
 #include "PiHob.h"
 #include "MeasureBootPeCoff.h"
-#include "Tcg2Dxe.h"
 #include "SecMain.h"
 #include "ImageAuthentication.h"
 #include "UefiTcgPlatform.h"

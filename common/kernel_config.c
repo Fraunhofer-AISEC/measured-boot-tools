@@ -19,7 +19,6 @@
 #include "PeCoffLib.h"
 #include "PiFirmwareVolume.h"
 #include "MeasureBootPeCoff.h"
-#include "Tcg2Dxe.h"
 #include "SecMain.h"
 
 #include "common.h"

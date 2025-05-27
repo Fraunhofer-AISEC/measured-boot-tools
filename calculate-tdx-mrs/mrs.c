@@ -29,7 +29,6 @@
 #include "PiFirmwareVolume.h"
 #include "PiHob.h"
 #include "MeasureBootPeCoff.h"
-#include "Tcg2Dxe.h"
 #include "SecMain.h"
 #include "ImageAuthentication.h"
 #include "UefiTcgPlatform.h"
@@ -41,6 +40,7 @@
 #include "td_hob.h"
 #include "mrtd.h"
 #include "efi_boot.h"
+#include "secureboot.h"
 #include "mrs.h"
 
 extern EFI_GUID gEfiImageSecurityDatabaseGuid;
@@ -160,8 +160,8 @@ calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
     hash_extend(EVP_sha384(), mr, hash_cfv, SHA384_DIGEST_LENGTH);
 
     // Measure UEFI Secure Boot Variables: SecureBoot, PK, KEK, db, dbx
-    EFI_STATUS status = MeasureAllSecureVariables(EVP_sha384(), mr, INDEX_RTMR0, evlog);
-    if (status != EFI_SUCCESS) {
+    ret = measure_secure_boot_variables(EVP_sha384(), mr, INDEX_RTMR0, evlog, NULL, NULL, NULL, NULL, NULL);
+    if (ret) {
         printf("Failed to measure secure boot variables\n");
         goto out;
     }

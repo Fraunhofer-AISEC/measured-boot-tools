@@ -46,11 +46,16 @@ print_usage(const char *progname)
     printf("\t     --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t     --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
     printf("\t     --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
-    printf("\t     --sbat\t\t\tSBAT level string for measuring DBX authority into PCR7\n");
+    printf("\t     --sbatlevel\t\t\tSBAT level string for measuring DBX authority into PCR7\n");
     printf(
         "\t     --path\t\t\tPath to folder/file to be extended into PCR9, e.g. kernel (multiple --path possible)\n");
     printf("\t     --bootorder <num>[,<num>,...]\t\tUEFI boot order variable as a comma separated list of integers\n");
-    printf("\t     --bootxxxx <data> UEFI Boot#### variable data (multiple possible)\n");
+    printf("\t     --bootxxxx <file> UEFI Boot#### variable data file (multiple possible)\n");
+    printf("\t     --secureboot <file> UEFI secure boot SecureBoot variable data file\n");
+    printf("\t     --pk <file> UEFI secure boot Platform Key (PK) variable data file\n");
+    printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file\n");
+    printf("\t     --db <file> UEFI secure boot DB variable data file\n");
+    printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
     printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
@@ -71,6 +76,11 @@ main(int argc, char *argv[])
     const char *sbat_level = NULL;
     const char *dump_pei_path = NULL;
     const char *dump_dxe_path = NULL;
+    const char *secure_boot_path = NULL;
+    const char *pk_path = NULL;
+    const char *kek_path = NULL;
+    const char *db_path = NULL;
+    const char *dbx_path = NULL;
     ssize_t cmdline_trailing_zeros = 1;
     bool print_event_log = false;
     bool print_summary = false;
@@ -179,6 +189,26 @@ main(int argc, char *argv[])
             bootxxxx[num_bootxxxx++] = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--secureboot") && argc >= 2) {
+            secure_boot_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--pk") && argc >= 2) {
+            pk_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--kek") && argc >= 2) {
+            kek_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--db") && argc >= 2) {
+            db_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--dbx") && argc >= 2) {
+            dbx_path = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--grubcmds") && argc >= 2) {
             grubcmds = argv[1];
             argv += 2;
@@ -258,7 +288,8 @@ main(int argc, char *argv[])
             strncpy(boot_order_str, argv[1], strlen(argv[1]) + 1);
             char *pch = strtok(boot_order_str, ",");
             while (pch) {
-                boot_order = (uint16_t *)realloc(boot_order, sizeof(uint32_t) * (len_boot_order + 1));
+                boot_order =
+                    (uint16_t *)realloc(boot_order, sizeof(uint32_t) * (len_boot_order + 1));
                 boot_order[len_boot_order] = (uint16_t)strtol(pch, NULL, 0);
                 pch = strtok(NULL, ",");
                 len_boot_order++;
@@ -351,6 +382,21 @@ main(int argc, char *argv[])
     for (size_t i = 0; i < num_bootxxxx; i++) {
         DEBUG("Boot####: %s\n", bootxxxx[i]);
     }
+    if (secure_boot_path) {
+        DEBUG("SecureBoot path: %s\n", secure_boot_path);
+    }
+    if (pk_path) {
+        DEBUG("PK path: %s\n", pk_path);
+    }
+    if (kek_path) {
+        DEBUG("KEK path: %s\n", kek_path);
+    }
+    if (db_path) {
+        DEBUG("DB path: %s\n", db_path);
+    }
+    if (dbx_path) {
+        DEBUG("DBX path: %s\n", dbx_path);
+    }
 
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
 
@@ -361,7 +407,8 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
-        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg, boot_order, len_boot_order, bootxxxx, num_bootxxxx)) {
+        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg, boot_order, len_boot_order, bootxxxx,
+                           num_bootxxxx)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
         }
@@ -398,7 +445,8 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 7)) {
-        if (calculate_pcr7(pcr[7], &evlog, sbat_level)) {
+        if (calculate_pcr7(pcr[7], &evlog, sbat_level, secure_boot_path, pk_path, kek_path, db_path,
+                           dbx_path)) {
             printf("Failed to calculate event log for PCR 7\n");
             goto out;
         }
@@ -520,6 +568,12 @@ out:
         free(pcr1_cfg.tpm_log);
     if (paths) {
         free(paths);
+    }
+    if (bootxxxx) {
+        free(bootxxxx);
+    }
+    if (boot_order) {
+        free(boot_order);
     }
 
     return ret;
