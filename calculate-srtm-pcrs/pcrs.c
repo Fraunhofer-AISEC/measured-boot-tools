@@ -179,7 +179,8 @@ out:
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
+calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16_t *boot_order, size_t len_boot_order,
+    char **bootxxxx, size_t num_bootxxxx)
 {
     int ret = -1;
 
@@ -193,26 +194,44 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     }
 
     // EV_EFI_VARIABLE_BOOT Boot Order
-    uint8_t efi_variable_boot[2] = { 0x0, 0x0 };
+    print_data((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "XXX BOOT ORDER");
     uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)efi_variable_boot,
-             sizeof(efi_variable_boot));
+    hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)boot_order, len_boot_order * sizeof(uint16_t));
     evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
               "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
     hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
 
-    // EV_EFI_VARIABLE_BOOT Boot0000
-    long len = 0;
-    uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
-    if (!efi_variable_boot0000) {
-        printf("failed to calculate efi load option\n");
-        goto out;
+    // Default EV_EFI_VARIABLE_BOOT Boot0000 variable
+    if (!bootxxxx) {
+        long len = 0;
+        uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
+        if (!efi_variable_boot0000) {
+            printf("failed to calculate efi load option\n");
+            goto out;
+        }
+        uint8_t hash_efi_variable_boot0000[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
+        evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
+                "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+        hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot0000, SHA256_DIGEST_LENGTH);
+        free(efi_variable_boot0000);
+    } else {
+        for (size_t i = 0; i < num_bootxxxx; i++) {
+            uint8_t *file_buf = NULL;
+            size_t file_size = 0;
+            uint8_t hash_efi_variable_bootxxxx[SHA256_DIGEST_LENGTH];
+            ret = read_file(&file_buf, &file_size, bootxxxx[i]);
+            if (ret) {
+                printf("failed to hash file %s\n", bootxxxx[i]);
+                goto out;
+            }
+            // Extract data from efivars files
+            hash_buf(EVP_sha256(), hash_efi_variable_bootxxxx, file_buf + 4, file_size -4);
+            evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_bootxxxx,
+                "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+            hash_extend(EVP_sha256(), pcr, hash_efi_variable_bootxxxx, SHA256_DIGEST_LENGTH);
+        }
     }
-    uint8_t hash_efi_variable_boot0000[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
-    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
-              "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot0000, SHA256_DIGEST_LENGTH);
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
@@ -228,8 +247,6 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg)
     ret = 0;
 
 out:
-    if (efi_variable_boot0000)
-        free(efi_variable_boot0000);
     if (ev_separator)
         OPENSSL_free(ev_separator);
 
@@ -352,8 +369,39 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
         return -1;
     }
 
-    // EV_EFI_BOOT_SERVICES_APPLICATION: If bootloaders are NOT present, measure Linux kernel
-    if (!bootloader_files) {
+    // Measure bootloaders if present
+    if (bootloader_files) {
+        for (size_t i = 0; i < num_bootloader_files; i++) {
+            if (!bootloader_files[i]) {
+                printf("bootloader file is nil\n");
+                return -1;
+            }
+
+            uint8_t hash_bl[SHA256_DIGEST_LENGTH] = { 0 };
+            uint8_t *bl_buf = NULL;
+            uint64_t bl_size = 0;
+
+            ret = LoadPeImage(&bl_buf, &bl_size, bootloader_files[i]);
+            if (ret != 0) {
+                printf("Failed to load bootloader image %s\n", bootloader_files[i]);
+                return -1;
+            }
+
+            EFI_STATUS status = MeasurePeImage(EVP_sha256(), hash_bl, bl_buf, bl_size);
+            if (EFI_ERROR(status)) {
+                printf("printf: Failed to measure PE Image: %llx\n", status);
+                free(bl_buf);
+            }
+            evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", hash_bl,
+                      basename((char *)bootloader_files[i]));
+
+            hash_extend(EVP_sha256(), pcr, hash_bl, SHA256_DIGEST_LENGTH);
+            free(bl_buf);
+        }
+    }
+
+    // Measure kernel if present
+    if (kernel_file) {
         uint8_t hash_kernel[SHA256_DIGEST_LENGTH] = { 0 };
         uint8_t *kernel_buf = NULL;
         uint64_t kernel_size = 0;
@@ -416,37 +464,6 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
     OPENSSL_free(ev_separator);
     evlog_add(evlog, 4, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
-
-    // Measure bootloaders if present
-    if (bootloader_files) {
-        for (size_t i = 0; i < num_bootloader_files; i++) {
-            if (!bootloader_files[i]) {
-                printf("bootloader file is nil\n");
-                return -1;
-            }
-
-            uint8_t hash_bl[SHA256_DIGEST_LENGTH] = { 0 };
-            uint8_t *bl_buf = NULL;
-            uint64_t bl_size = 0;
-
-            ret = LoadPeImage(&bl_buf, &bl_size, bootloader_files[i]);
-            if (ret != 0) {
-                printf("Failed to load bootloader image %s\n", bootloader_files[i]);
-                return -1;
-            }
-
-            EFI_STATUS status = MeasurePeImage(EVP_sha256(), hash_bl, bl_buf, bl_size);
-            if (EFI_ERROR(status)) {
-                printf("printf: Failed to measure PE Image: %llx\n", status);
-                free(bl_buf);
-            }
-            evlog_add(evlog, 4, "EV_EFI_BOOT_SERVICES_APPLICATION", hash_bl,
-                      basename((char *)bootloader_files[i]));
-
-            hash_extend(EVP_sha256(), pcr, hash_bl, SHA256_DIGEST_LENGTH);
-            free(bl_buf);
-        }
-    }
 
     return 0;
 }

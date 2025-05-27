@@ -118,6 +118,8 @@ int MeasureVariable(
   uint8_t hash[EVP_MD_size(md)];
 	hash_buf(md, hash, (uint8_t *)VarLog, event_size);
 
+  print_data_debug((uint8_t *)VarLog, event_size, VarNameNarrow);
+
   if (EventType == EV_EFI_VARIABLE_DRIVER_CONFIG) {
     evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_DRIVER_CONFIG", hash, VarNameNarrow);
   } else if (EventType == EV_EFI_VARIABLE_BOOT) {

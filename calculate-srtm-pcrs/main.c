@@ -34,7 +34,7 @@ print_usage(const char *progname)
     printf("\t-v   --verbose\t\t\tPrint verbose debug output\n");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
     printf("\t-c,  --config\t\t\tPath to kernel configuration file\n");
-    printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
+    printf("\t-k,  --kernel <file>\t\tThe filename of direct boot kernel images measured into PCR4\n");
     printf("\t-i,  --initrd <file>\t\tThe filename of the initrd/initramfs\n");
     printf("\t     --driver\t\t\tPath to 3rd party UEFI drivers (multiple --driver possible)\n");
     printf(
@@ -48,7 +48,9 @@ print_usage(const char *progname)
     printf("\t     --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
     printf("\t     --sbat\t\t\tSBAT level string for measuring DBX authority into PCR7\n");
     printf(
-        "\t     --path\t\t\tPath to folder/file to be extended into PCR9 (multiple --path possible)\n");
+        "\t     --path\t\t\tPath to folder/file to be extended into PCR9, e.g. kernel (multiple --path possible)\n");
+    printf("\t     --bootorder <num>[,<num>,...]\t\tUEFI boot order variable as a comma separated list of integers\n");
+    printf("\t     --bootxxxx <data> UEFI Boot#### variable data (multiple possible)\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
     printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
@@ -75,8 +77,13 @@ main(int argc, char *argv[])
     bool print_aggregate = false;
     uint32_t *pcr_nums = NULL;
     size_t len_pcr_nums = 0;
-    const char *progname = argv[0];
     char *pcr_str = NULL;
+    uint16_t *boot_order = NULL;
+    size_t len_boot_order = 0;
+    char *boot_order_str;
+    char **bootxxxx = NULL;
+    size_t num_bootxxxx = 0;
+    const char *progname = argv[0];
     char **uefi_drivers = NULL;
     size_t num_uefi_drivers = 0;
     char **bootloaders = NULL;
@@ -167,6 +174,11 @@ main(int argc, char *argv[])
             bootloaders[num_bootloaders++] = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--bootxxxx") && argc >= 2) {
+            bootxxxx = (char **)realloc(bootxxxx, sizeof(char *) * (num_bootxxxx + 1));
+            bootxxxx[num_bootxxxx++] = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--grubcmds") && argc >= 2) {
             grubcmds = argv[1];
             argv += 2;
@@ -237,6 +249,22 @@ main(int argc, char *argv[])
             efi_gpt = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--bootorder") && argc >= 2) {
+            boot_order_str = (char *)malloc(strlen(argv[1]) + 1);
+            if (!boot_order_str) {
+                printf("Failed to allocate memory\n");
+                goto out;
+            }
+            strncpy(boot_order_str, argv[1], strlen(argv[1]) + 1);
+            char *pch = strtok(boot_order_str, ",");
+            while (pch) {
+                boot_order = (uint16_t *)realloc(boot_order, sizeof(uint32_t) * (len_boot_order + 1));
+                boot_order[len_boot_order] = (uint16_t)strtol(pch, NULL, 0);
+                pch = strtok(NULL, ",");
+                len_boot_order++;
+            }
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--dumppei")) {
             dump_pei_path = argv[1];
             argv += 2;
@@ -250,6 +278,12 @@ main(int argc, char *argv[])
             print_usage(progname);
             goto out;
         }
+    }
+
+    // If no boot order is given, set to default boot order
+    if (!boot_order) {
+        boot_order = (uint16_t *)calloc(1, sizeof(uint16_t));
+        len_boot_order = 1;
     }
 
     for (size_t i = 0; i < len_pcr_nums; i++) {
@@ -296,7 +330,7 @@ main(int argc, char *argv[])
         DEBUG("\tUEFI driver: %s\n", uefi_drivers[i]);
     }
     for (size_t i = 0; i < num_bootloaders; i++) {
-        DEBUG("\tBootloaders: %s\n", bootloaders[i]);
+        DEBUG("\tBootloader: %s\n", bootloaders[i]);
     }
     for (size_t i = 0; i < num_paths; i++) {
         DEBUG("\tPaths: %s\n", paths[i]);
@@ -306,6 +340,16 @@ main(int argc, char *argv[])
     }
     if (dump_dxe_path) {
         DEBUG("\tDXEFV measurement dump path: %s\n", dump_dxe_path);
+    }
+    if (boot_order) {
+        DEBUG("BootOrder: [");
+        for (size_t i = 0; i < len_boot_order; i++) {
+            DEBUG("0x%04x ", boot_order[i]);
+        }
+        DEBUG("]\n");
+    }
+    for (size_t i = 0; i < num_bootxxxx; i++) {
+        DEBUG("Boot####: %s\n", bootxxxx[i]);
     }
 
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
@@ -317,7 +361,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
-        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg)) {
+        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg, boot_order, len_boot_order, bootxxxx, num_bootxxxx)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
         }
