@@ -80,6 +80,8 @@ calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file)
 {
     int ret = -1;
 
+    DEBUG("Calculating MRTD...\n");
+
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
     uint8_t *ovmf_buf = NULL;
@@ -121,10 +123,14 @@ out:
  */
 int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
-                rtmr0_qemu_fw_cfg_files_t *cfg, const char *ovmf_version)
+                acpi_files_t *cfg, const char *ovmf_version,
+                uint16_t *boot_order, size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx,
+                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx)
 {
     int ret = -1;
     long len = 0;
+
+    DEBUG("Calculating RTMR0...\n");
 
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
@@ -145,22 +151,24 @@ calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
     // Configuration Firmware Volume (CFV)
     uint8_t *ovmf_buf = NULL;
     uint64_t ovmf_size = 0;
-    ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
-    if (ret) {
-        printf("Failed to load %s\n", ovmf_file);
-        goto out;
+    if (ovmf_file) {
+        ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
+        if (ret) {
+            printf("Failed to load %s\n", ovmf_file);
+            goto out;
+        }
+        uint8_t hash_cfv[SHA384_DIGEST_LENGTH];
+        ret = measure_cfv(hash_cfv, ovmf_buf, ovmf_size);
+        if (ret) {
+            printf("Failed to measure ovmf\n");
+            goto out;
+        }
+        evlog_add(evlog, INDEX_RTMR0, "Configuration FV", hash_cfv, "Configuration Firmware Volume");
+        hash_extend(EVP_sha384(), mr, hash_cfv, SHA384_DIGEST_LENGTH);
     }
-    uint8_t hash_cfv[SHA384_DIGEST_LENGTH];
-    ret = measure_cfv(hash_cfv, ovmf_buf, ovmf_size);
-    if (ret) {
-        printf("Failed to measure ovmf\n");
-        goto out;
-    }
-    evlog_add(evlog, INDEX_RTMR0, "Configuration FV", hash_cfv, "Configuration Firmware Volume");
-    hash_extend(EVP_sha384(), mr, hash_cfv, SHA384_DIGEST_LENGTH);
 
     // Measure UEFI Secure Boot Variables: SecureBoot, PK, KEK, db, dbx
-    ret = measure_secure_boot_variables(EVP_sha384(), mr, INDEX_RTMR0, evlog, NULL, NULL, NULL, NULL, NULL);
+    ret = measure_secure_boot_variables(EVP_sha384(), mr, INDEX_RTMR0, evlog, secure_boot, pk, kek, db, dbx);
     if (ret) {
         printf("Failed to measure secure boot variables\n");
         goto out;
@@ -177,52 +185,19 @@ calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
     evlog_add(evlog, INDEX_RTMR0, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
     hash_extend(EVP_sha384(), mr, hash_ev_separator, SHA384_DIGEST_LENGTH);
 
-    // EV_PLATFORM_CONFIG_FLAGS: etc/table-loader
-    if (cfg->table_loader_size > 0) {
-        uint8_t hash_table_loader[SHA384_DIGEST_LENGTH];
-        hash_buf(EVP_sha384(), hash_table_loader, cfg->table_loader, cfg->table_loader_size);
-        evlog_add(evlog, INDEX_RTMR0, "EV_PLATFORM_CONFIG_FLAGS", hash_table_loader,
-                  "etc/table-loader");
-        hash_extend(EVP_sha384(), mr, hash_table_loader, SHA384_DIGEST_LENGTH);
-    }
-
-    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/rsdp
-    if (cfg->acpi_rsdp_size > 0) {
-        uint8_t hash_acpi_rsdp[SHA384_DIGEST_LENGTH];
-        hash_buf(EVP_sha384(), hash_acpi_rsdp, cfg->acpi_rsdp, cfg->acpi_rsdp_size);
-        evlog_add(evlog, INDEX_RTMR0, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_rsdp, "etc/acpi/rsdp");
-        hash_extend(EVP_sha384(), mr, hash_acpi_rsdp, SHA384_DIGEST_LENGTH);
-    }
-
-    // EV_PLATFORM_CONFIG_FLAGS: etc/acpi/tables
-    if (cfg->acpi_tables_size > 0) {
-        uint8_t hash_acpi_tables[SHA384_DIGEST_LENGTH];
-        hash_buf(EVP_sha384(), hash_acpi_tables, cfg->acpi_tables, cfg->acpi_tables_size);
-        evlog_add(evlog, INDEX_RTMR0, "EV_PLATFORM_CONFIG_FLAGS", hash_acpi_tables,
-                  "etc/acpi/tables");
-        hash_extend(EVP_sha384(), mr, hash_acpi_tables, SHA384_DIGEST_LENGTH);
-    }
-
-    // EV_EFI_VARIABLE Boot Order
-    len = 2;
-    uint8_t efi_variable_boot_order[] = { 0x0, 0x0 };
-    uint8_t hash_efi_variable_boot_order[SHA384_DIGEST_LENGTH];
-    hash_buf(EVP_sha384(), hash_efi_variable_boot_order, (uint8_t *)efi_variable_boot_order, len);
-    evlog_add(evlog, INDEX_RTMR0, "EV_EFI_VARIABLE", hash_efi_variable_boot_order,
-              "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-    hash_extend(EVP_sha384(), mr, hash_efi_variable_boot_order, SHA384_DIGEST_LENGTH);
-
-    // EV_EFI_VARIABLE_BOOT Boot0000
-    uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
-    if (!efi_variable_boot0000) {
-        printf("failed to calculate efi load option\n");
+    // EV_PLATFORM_CONFIG_FLAGS: ACPI tables
+    ret = calculate_acpi_tables(EVP_sha384(), mr, INDEX_RTMR0, evlog, cfg);
+    if (ret) {
+        printf("failed to calculate acpi tables\n");
         goto out;
     }
-    uint8_t hash_efi_variable_boot0000[SHA384_DIGEST_LENGTH];
-    hash_buf(EVP_sha384(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
-    evlog_add(evlog, INDEX_RTMR0, "EV_EFI_VARIABLE", hash_efi_variable_boot0000,
-              "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-    hash_extend(EVP_sha384(), mr, hash_efi_variable_boot0000, SHA384_DIGEST_LENGTH);
+
+    // EV_EFI_VARIABLE_BOOT boot variables
+    ret = calculate_efi_boot_vars(EVP_sha384(), mr, INDEX_RTMR0, evlog, boot_order, len_boot_order, bootxxxx, num_bootxxxx);
+    if (ret) {
+        printf("Failed to calculate EFI boot variables\n");
+        goto out;
+    }
 
     // Terminating EV_SEPARATOR is extended only in edk2-stable202408.01
     if (!strcmp(ovmf_version, "edk2-stable202408.01")) {
@@ -239,8 +214,6 @@ out:
         free(ovmf_buf);
     if (ev_separator)
         OPENSSL_free(ev_separator);
-    if (efi_variable_boot0000)
-        free(efi_variable_boot0000);
 
     return ret;
 }
@@ -252,10 +225,12 @@ out:
  *
  */
 int
-calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, config_t *config,
+calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
                 const char *dump_kernel_path, const char *ovmf_version)
 {
     int ret = -1;
+
+    DEBUG("Calculating RTMR1...\n");
 
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
@@ -269,10 +244,22 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, config_
         goto out;
     }
 
-    ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, config);
-    if (ret != 0) {
-        printf("Failed to prepare kernel PE/COFF image\n");
-        goto out;
+    if (config_file) {
+        // Load configuration variables
+        config_t config = { 0 };
+        if (config_file) {
+            ret = config_load(&config, config_file);
+            if (ret != 0) {
+                printf("Failed to load configuration\n");
+                goto out;
+            }
+        }
+
+        ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, &config);
+        if (ret != 0) {
+            printf("Failed to prepare kernel PE/COFF image\n");
+            goto out;
+        }
     }
 
     EFI_STATUS status = MeasurePeImage(EVP_sha384(), hash_kernel, kernel_buf, kernel_size);
@@ -349,6 +336,8 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t
 {
     int ret = -1;
 
+    DEBUG("Calculating RTMR2...\n");
+
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
     // EV_EVENT_TAG kernel commandline (OVMF uses CHAR16)
@@ -401,6 +390,8 @@ calculate_rtmr3(uint8_t *mr, eventlog_t *evlog)
     (void)evlog;
 
     int ret = -1;
+
+    DEBUG("Calculating RTMR3...\n");
 
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 

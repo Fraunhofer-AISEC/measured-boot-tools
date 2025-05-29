@@ -101,7 +101,7 @@ main(int argc, char *argv[])
     char **paths = NULL;
     size_t num_paths = 0;
     eventlog_t evlog = { .format = FORMAT_TEXT, .log = { 0 } };
-    pcr1_config_files_t pcr1_cfg = {
+    acpi_files_t acpi_files = {
         .acpi_rsdp_size = -1, .acpi_tables_size = -1, .table_loader_size = -1, .tpm_log_size = -1
     };
 
@@ -231,39 +231,39 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--acpirsdp") && argc >= 2) {
-            pcr1_cfg.acpi_rsdp_size = get_file_size(argv[1]);
-            if (pcr1_cfg.acpi_rsdp_size < 0) {
+            acpi_files.acpi_rsdp_size = get_file_size(argv[1]);
+            if (acpi_files.acpi_rsdp_size < 0) {
                 printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
                 goto out;
             }
-            pcr1_cfg.acpi_rsdp = read_file_new(argv[1]);
+            acpi_files.acpi_rsdp = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--acpitables") && argc >= 2) {
-            pcr1_cfg.acpi_tables_size = get_file_size(argv[1]);
-            if (pcr1_cfg.acpi_tables_size < 0) {
+            acpi_files.acpi_tables_size = get_file_size(argv[1]);
+            if (acpi_files.acpi_tables_size < 0) {
                 printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
                 goto out;
             }
-            pcr1_cfg.acpi_tables = read_file_new(argv[1]);
+            acpi_files.acpi_tables = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--tableloader") && argc >= 2) {
-            pcr1_cfg.table_loader_size = get_file_size(argv[1]);
-            if (pcr1_cfg.table_loader_size < 0) {
+            acpi_files.table_loader_size = get_file_size(argv[1]);
+            if (acpi_files.table_loader_size < 0) {
                 printf("Failed to get file size of table loader file %s\n", argv[1]);
                 goto out;
             }
-            pcr1_cfg.table_loader = read_file_new(argv[1]);
+            acpi_files.table_loader = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--tpmlog") && argc >= 2) {
-            pcr1_cfg.tpm_log_size = get_file_size(argv[1]);
-            if (pcr1_cfg.tpm_log_size < 0) {
+            acpi_files.tpm_log_size = get_file_size(argv[1]);
+            if (acpi_files.tpm_log_size < 0) {
                 printf("Failed to get file size of TPM log file %s\n", argv[1]);
                 goto out;
             }
-            pcr1_cfg.tpm_log = read_file_new(argv[1]);
+            acpi_files.tpm_log = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "--path")) && argc >= 2) {
@@ -407,7 +407,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
-        if (calculate_pcr1(pcr[1], &evlog, &pcr1_cfg, boot_order, len_boot_order, bootxxxx,
+        if (calculate_pcr1(pcr[1], &evlog, &acpi_files, boot_order, len_boot_order, bootxxxx,
                            num_bootxxxx)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
@@ -558,14 +558,14 @@ out:
         free(uefi_drivers);
     if (bootloaders)
         free(bootloaders);
-    if (pcr1_cfg.acpi_rsdp)
-        free(pcr1_cfg.acpi_rsdp);
-    if (pcr1_cfg.acpi_tables)
-        free(pcr1_cfg.acpi_tables);
-    if (pcr1_cfg.table_loader)
-        free(pcr1_cfg.table_loader);
-    if (pcr1_cfg.tpm_log)
-        free(pcr1_cfg.tpm_log);
+    if (acpi_files.acpi_rsdp)
+        free(acpi_files.acpi_rsdp);
+    if (acpi_files.acpi_tables)
+        free(acpi_files.acpi_tables);
+    if (acpi_files.table_loader)
+        free(acpi_files.table_loader);
+    if (acpi_files.tpm_log)
+        free(acpi_files.tpm_log);
     if (paths) {
         free(paths);
     }

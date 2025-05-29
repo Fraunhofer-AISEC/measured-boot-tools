@@ -179,62 +179,27 @@ out:
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, pcr1_config_files_t *cfg, uint16_t *boot_order,
+calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boot_order,
                size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx)
 {
     int ret = -1;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // EV_PLATFORM_CONFIG_FLAGS
-    ret = calculate_acpi_tables(pcr, evlog, cfg);
+    // EV_PLATFORM_CONFIG_FLAGS: ACPI tables
+    ret = calculate_acpi_tables(EVP_sha256(), pcr, 1, evlog, cfg);
     if (ret) {
         printf("failed to calculate acpi tables\n");
         goto out;
     }
 
-    // EV_EFI_VARIABLE_BOOT Boot Order
-    print_data_debug((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "BOOT ORDER");
-    uint8_t hash_efi_variable_boot[SHA256_DIGEST_LENGTH];
-    hash_buf(EVP_sha256(), hash_efi_variable_boot, (uint8_t *)boot_order,
-             len_boot_order * sizeof(uint16_t));
-    evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
-              "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-    hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot, SHA256_DIGEST_LENGTH);
-
-    // Default EV_EFI_VARIABLE_BOOT Boot0000 variable
-    if (!bootxxxx) {
-        long len = 0;
-        uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
-        if (!efi_variable_boot0000) {
-            printf("failed to calculate efi load option\n");
-            goto out;
-        }
-        uint8_t hash_efi_variable_boot0000[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_efi_variable_boot0000, efi_variable_boot0000, len);
-        evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
-                  "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-        hash_extend(EVP_sha256(), pcr, hash_efi_variable_boot0000, SHA256_DIGEST_LENGTH);
-        free(efi_variable_boot0000);
-    } else {
-        for (size_t i = 0; i < num_bootxxxx; i++) {
-            uint8_t *file_buf = NULL;
-            size_t file_size = 0;
-            uint8_t hash_efi_variable_bootxxxx[SHA256_DIGEST_LENGTH];
-            ret = read_file(&file_buf, &file_size, bootxxxx[i]);
-            if (ret) {
-                printf("failed to hash file %s\n", bootxxxx[i]);
-                goto out;
-            }
-            // Extract data from efivars files
-            print_data_debug(file_buf + 4, file_size - 4, "Boot####");
-            hash_buf(EVP_sha256(), hash_efi_variable_bootxxxx, file_buf + 4, file_size - 4);
-            evlog_add(evlog, 1, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_bootxxxx,
-                      "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
-            hash_extend(EVP_sha256(), pcr, hash_efi_variable_bootxxxx, SHA256_DIGEST_LENGTH);
-            free(file_buf);
-        }
+    // EV_EFI_VARIABLE_BOOT boot variables
+    ret = calculate_efi_boot_vars(EVP_sha256(), pcr, 1, evlog, boot_order, len_boot_order, bootxxxx, num_bootxxxx);
+    if (ret) {
+        printf("Failed to calculate EFI boot variables\n");
+        goto out;
     }
+
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);

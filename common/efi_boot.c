@@ -6,6 +6,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+
 #include "ProcessorBind.h"
 #include "Base.h"
 #include "UefiBaseType.h"
@@ -18,8 +21,10 @@
 #include "ImageAuthentication.h"
 #include "UefiTcgPlatform.h"
 
+#include "hash.h"
 #include "common.h"
 #include "efi_boot.h"
+#include "eventlog.h"
 
 // TODO
 #define MEDIA_PROTOCOL_TYPE 4
@@ -158,4 +163,57 @@ calculate_efi_load_option(size_t *out_len)
     *out_len = len;
 
     return buf;
+}
+
+int
+calculate_efi_boot_vars(const EVP_MD *md, uint8_t *mr, uint32_t mr_index, eventlog_t *evlog,
+                        uint16_t *boot_order, size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx)
+{
+    int ret = -1;
+
+    // EV_EFI_VARIABLE_BOOT Boot Order
+    print_data_debug((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "BOOT ORDER");
+    uint8_t hash_efi_variable_boot[EVP_MD_size(md)];
+    hash_buf(md, hash_efi_variable_boot, (uint8_t *)boot_order,
+             len_boot_order * sizeof(uint16_t));
+    evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot,
+              "VariableName - BootOrder, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+    hash_extend(md, mr, hash_efi_variable_boot, EVP_MD_size(md));
+
+    // Default EV_EFI_VARIABLE_BOOT Boot0000 variable
+    if (!bootxxxx) {
+        long len = 0;
+        uint8_t *efi_variable_boot0000 = calculate_efi_load_option((size_t *)&len);
+        if (!efi_variable_boot0000) {
+            printf("failed to calculate efi load option\n");
+            return -1;
+        }
+        uint8_t hash_efi_variable_boot0000[EVP_MD_size(md)];
+        hash_buf(md, hash_efi_variable_boot0000, efi_variable_boot0000, len);
+        evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,
+                  "VariableName - Boot0000, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+        hash_extend(md, mr, hash_efi_variable_boot0000, EVP_MD_size(md));
+        free(efi_variable_boot0000);
+    } else {
+        for (size_t i = 0; i < num_bootxxxx; i++) {
+            uint8_t *file_buf = NULL;
+            size_t file_size = 0;
+            uint8_t hash_efi_variable_bootxxxx[EVP_MD_size(md)];
+            ret = read_file(&file_buf, &file_size, bootxxxx[i]);
+            if (ret) {
+                printf("failed to hash file %s\n", bootxxxx[i]);
+                return -1;
+            }
+            // Extract data from efivars files
+            print_data_debug(file_buf + 4, file_size - 4, "Boot####");
+            hash_buf(md, hash_efi_variable_bootxxxx, file_buf + 4, file_size - 4);
+            evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_bootxxxx,
+                      "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
+            hash_extend(md, mr, hash_efi_variable_bootxxxx, EVP_MD_size(md));
+            free(file_buf);
+        }
+    }
+
+    ret = 0;
+    return ret;
 }

@@ -2,14 +2,7 @@
 
 #pragma once
 
-typedef struct {
-    uint8_t *acpi_tables;
-    ssize_t acpi_tables_size;
-    uint8_t *acpi_rsdp;
-    ssize_t acpi_rsdp_size;
-    uint8_t *table_loader;
-    ssize_t table_loader_size;
-} rtmr0_qemu_fw_cfg_files_t;
+#include "acpi.h"
 
 int
 calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module);
@@ -19,10 +12,12 @@ calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file);
 
 int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
-                rtmr0_qemu_fw_cfg_files_t *cfg, const char *ovmf_version);
+                acpi_files_t *cfg, const char *ovmf_version,
+                uint16_t *boot_order, size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx,
+                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx);
 
 int
-calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, config_t *config,
+calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
                 const char *dump_kernel_path, const char *ovmf_version);
 
 int

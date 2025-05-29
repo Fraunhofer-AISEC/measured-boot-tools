@@ -53,6 +53,14 @@ print_usage(const char *progname)
     printf("\t-a,  --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for RTMR0\n");
     printf("\t-t,  --acpitables\t\tPath to QEMU etc/acpi/tables file for RTMR0\n");
     printf("\t-l,  --tableloader\t\tPath to QEMU etc/table-loader file for RTMR0\n");
+    printf("\t     --bootorder <num>[,<num>,...]\t\tUEFI boot order variable as a comma separated list of integers\n");
+    printf("\t     --bootxxxx <file> UEFI Boot#### variable data file (multiple possible)\n");
+    printf("\t     --secureboot <file> UEFI secure boot SecureBoot variable data file\n");
+    printf("\t     --pk <file> UEFI secure boot Platform Key (PK) variable data file\n");
+    printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file\n");
+    printf("\t     --db <file> UEFI secure boot DB variable data file\n");
+    printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
+    printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --dumpkernel\t\tOptional path to folder to dump the measured kernel\n");
     printf("\n");
 }
@@ -86,6 +94,16 @@ main(int argc, char *argv[])
     const char *tdx_module = NULL;
     const char *dump_kernel_path = NULL;
     const char *ovmf_version = "edk2-stable202502";
+    const char *secure_boot_path = NULL;
+    const char *pk_path = NULL;
+    const char *kek_path = NULL;
+    const char *db_path = NULL;
+    const char *dbx_path = NULL;
+    uint16_t *boot_order = NULL;
+    size_t len_boot_order = 0;
+    char *boot_order_str;
+    char **bootxxxx = NULL;
+    size_t num_bootxxxx = 0;
     size_t cmdline_trailing_zeros = 1;
     bool print_event_log = false;
     bool print_summary = false;
@@ -94,9 +112,12 @@ main(int argc, char *argv[])
     char *mr_str = NULL;
     const char *progname = argv[0];
     eventlog_t evlog = { .format = FORMAT_TEXT, .log = { 0 } };
-    rtmr0_qemu_fw_cfg_files_t rtmr0_cfg = {
+    acpi_files_t acpi_files = {
+        .acpi_rsdp = NULL,
         .acpi_rsdp_size = -1,
+        .acpi_tables = NULL,
         .acpi_tables_size = -1,
+        .table_loader = NULL,
         .table_loader_size = -1,
     };
 
@@ -147,30 +168,72 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
-            rtmr0_cfg.acpi_rsdp_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.acpi_rsdp_size <= 0) {
+            acpi_files.acpi_rsdp_size = get_file_size(argv[1]);
+            if (acpi_files.acpi_rsdp_size <= 0) {
                 printf("Failed to get file size of ACPI RSDP file %s\n", argv[1]);
                 goto out;
             }
-            rtmr0_cfg.acpi_rsdp = read_file_new(argv[1]);
+            acpi_files.acpi_rsdp = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-t") || !strcmp(argv[0], "--acpitables")) && argc >= 2) {
-            rtmr0_cfg.acpi_tables_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.acpi_tables_size <= 0) {
+            acpi_files.acpi_tables_size = get_file_size(argv[1]);
+            if (acpi_files.acpi_tables_size <= 0) {
                 printf("Failed to get file size of ACPI tables file %s\n", argv[1]);
                 goto out;
             }
-            rtmr0_cfg.acpi_tables = read_file_new(argv[1]);
+            acpi_files.acpi_tables = read_file_new(argv[1]);
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-l") || !strcmp(argv[0], "--tableloader")) && argc >= 2) {
-            rtmr0_cfg.table_loader_size = get_file_size(argv[1]);
-            if (rtmr0_cfg.table_loader_size <= 0) {
+            acpi_files.table_loader_size = get_file_size(argv[1]);
+            if (acpi_files.table_loader_size <= 0) {
                 printf("Failed to get file size of table loader file %s\n", argv[1]);
                 goto out;
             }
-            rtmr0_cfg.table_loader = read_file_new(argv[1]);
+            acpi_files.table_loader = read_file_new(argv[1]);
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--bootxxxx") && argc >= 2) {
+            bootxxxx = (char **)realloc(bootxxxx, sizeof(char *) * (num_bootxxxx + 1));
+            bootxxxx[num_bootxxxx++] = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--secureboot") && argc >= 2) {
+            secure_boot_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--pk") && argc >= 2) {
+            pk_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--kek") && argc >= 2) {
+            kek_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--db") && argc >= 2) {
+            db_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--dbx") && argc >= 2) {
+            dbx_path = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--bootorder") && argc >= 2) {
+            boot_order_str = (char *)malloc(strlen(argv[1]) + 1);
+            if (!boot_order_str) {
+                printf("Failed to allocate memory\n");
+                goto out;
+            }
+            strncpy(boot_order_str, argv[1], strlen(argv[1]) + 1);
+            char *pch = strtok(boot_order_str, ",");
+            while (pch) {
+                boot_order =
+                    (uint16_t *)realloc(boot_order, sizeof(uint32_t) * (len_boot_order + 1));
+                boot_order[len_boot_order] = (uint16_t)strtol(pch, NULL, 0);
+                pch = strtok(NULL, ",");
+                len_boot_order++;
+            }
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
@@ -224,11 +287,13 @@ main(int argc, char *argv[])
         }
     }
 
-    if (!config_file && contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
-        printf("Config file must be specified\n");
-        print_usage(progname);
-        goto out;
+    // If no boot order is given, set to default boot order
+    if (!boot_order) {
+        boot_order = (uint16_t *)calloc(1, sizeof(uint16_t));
+        len_boot_order = 1;
     }
+
+
     if (!kernel && contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
         printf("Kernel must be specified\n");
         print_usage(progname);
@@ -250,21 +315,6 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (rtmr0_cfg.acpi_rsdp_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
-        printf("Config file ACPI RSDP must be specified\n");
-        print_usage(progname);
-        goto out;
-    }
-    if (rtmr0_cfg.acpi_tables_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
-        printf("Config file ACPI tables must be specified\n");
-        print_usage(progname);
-        goto out;
-    }
-    if (rtmr0_cfg.table_loader_size == -1 && contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
-        printf("Config file table loader must be specified\n");
-        print_usage(progname);
-        goto out;
-    }
 
     if (len_mr_nums == 0) {
         printf("No measurement registers specified. Nothing to do\n");
@@ -279,16 +329,6 @@ main(int argc, char *argv[])
     }
 
     DEBUG("Calculating TDX measurement registers\n");
-
-    // Load configuration variables
-    config_t config = { 0 };
-    if (config_file) {
-        ret = config_load(&config, config_file);
-        if (ret != 0) {
-            printf("Failed to load configuration\n");
-            goto out;
-        }
-    }
 
     DEBUG("Using the following artifacts:\n");
     DEBUG("\tKernel:     %s\n", kernel);
@@ -309,6 +349,31 @@ main(int argc, char *argv[])
     if (dump_kernel_path) {
         DEBUG("\nKernel measurement dump path: %s\n", dump_kernel_path);
     }
+    if (boot_order) {
+        DEBUG("BootOrder: [");
+        for (size_t i = 0; i < len_boot_order; i++) {
+            DEBUG("0x%04x ", boot_order[i]);
+        }
+        DEBUG("]\n");
+    }
+    for (size_t i = 0; i < num_bootxxxx; i++) {
+        DEBUG("Boot####: %s\n", bootxxxx[i]);
+    }
+    if (secure_boot_path) {
+        DEBUG("SecureBoot path: %s\n", secure_boot_path);
+    }
+    if (pk_path) {
+        DEBUG("PK path: %s\n", pk_path);
+    }
+    if (kek_path) {
+        DEBUG("KEK path: %s\n", kek_path);
+    }
+    if (db_path) {
+        DEBUG("DB path: %s\n", db_path);
+    }
+    if (dbx_path) {
+        DEBUG("DBX path: %s\n", dbx_path);
+    }
 
     uint8_t mrs[MR_LEN][SHA384_DIGEST_LENGTH];
 
@@ -327,14 +392,16 @@ main(int argc, char *argv[])
     }
 
     if (contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
-        if (calculate_rtmr0(mrs[INDEX_RTMR0], &evlog, ovmf, &rtmr0_cfg, ovmf_version)) {
+        if (calculate_rtmr0(mrs[INDEX_RTMR0], &evlog, ovmf, &acpi_files, ovmf_version,
+                            boot_order, len_boot_order, bootxxxx, num_bootxxxx,
+                            secure_boot_path, pk_path, kek_path, db_path, dbx_path)) {
             printf("Failed to calculate event log for RTMR 0\n");
             goto out;
         }
     }
 
     if (contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
-        if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, &config, dump_kernel_path,
+        if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, config_file, dump_kernel_path,
                             ovmf_version)) {
             printf("Failed to calculate event log for RTMR 1\n");
             goto out;
@@ -417,12 +484,19 @@ out:
             free(evlog.log[i]);
         }
     }
-    if (rtmr0_cfg.acpi_rsdp)
-        free(rtmr0_cfg.acpi_rsdp);
-    if (rtmr0_cfg.acpi_tables)
-        free(rtmr0_cfg.acpi_tables);
-    if (rtmr0_cfg.table_loader)
-        free(rtmr0_cfg.table_loader);
+    if (acpi_files.acpi_rsdp)
+        free(acpi_files.acpi_rsdp);
+    if (acpi_files.acpi_tables)
+        free(acpi_files.acpi_tables);
+    if (acpi_files.table_loader)
+        free(acpi_files.table_loader);
+
+    if (bootxxxx) {
+        free(bootxxxx);
+    }
+    if (boot_order) {
+        free(boot_order);
+    }
 
     return ret;
 }

@@ -30,8 +30,6 @@ CSRS := \
 	eventlog.c \
 	paths.c \
 	pcrs.c \
-	gpt.c \
-	acpi.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
 	../thirdparty/LzmaCustomDecompressLib/LzmaDecompress.c \
@@ -44,6 +42,8 @@ CSRS := \
 	../common/hash.c \
 	../common/kernel_config.c \
 	../common/secureboot.c \
+	../common/acpi.c \
+	../common/gpt.c \
 
 IFLAGS := $(ISRCS:%=-I%)
 

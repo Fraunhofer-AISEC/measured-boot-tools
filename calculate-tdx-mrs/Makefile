@@ -40,6 +40,8 @@ CSRS := \
 	../common/kernel_config.c \
 	../common/efi_boot.c \
 	../common/secureboot.c \
+	../common/acpi.c \
+	../common/gpt.c \
 
 IFLAGS := $(ISRCS:%=-I%)
 
