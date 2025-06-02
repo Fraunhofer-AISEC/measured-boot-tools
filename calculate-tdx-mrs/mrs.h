@@ -8,7 +8,7 @@ int
 calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module);
 
 int
-calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file);
+calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *qemu_version);
 
 int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,

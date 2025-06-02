@@ -39,8 +39,7 @@ print_usage(const char *progname)
     printf("\t-m,  --mrs <num[,num...]>\tMeasurement registers to be calculated\n");
     printf("\t     --tdxmodule <file>\t\tThe filename of the TDX-module binary\n");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
-    printf(
-        "\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
+    printf("\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --ramdisk <file>\t\tThe filename of the initramfs\n");
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
@@ -61,6 +60,7 @@ print_usage(const char *progname)
     printf("\t     --db <file> UEFI secure boot DB variable data file\n");
     printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
+    printf("\t-q   --qemuversion\t\tQEMU version (default: 9.2.0)\n");
     printf("\t     --dumpkernel\t\tOptional path to folder to dump the measured kernel\n");
     printf("\n");
 }
@@ -120,6 +120,7 @@ main(int argc, char *argv[])
         .table_loader = NULL,
         .table_loader_size = -1,
     };
+    const char *qemu_version = "9.2.0";
 
     argv++;
     argc--;
@@ -161,6 +162,10 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if (!strcmp(argv[0], "--ovmfversion") && argc >= 2) {
             ovmf_version = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if ((!strcmp(argv[0], "-q") || !strcmp(argv[0], "--qemuversion")) && argc >= 2) {
+            qemu_version = argv[1];
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--tdxmodule") && argc >= 2) {
@@ -350,7 +355,7 @@ main(int argc, char *argv[])
         DEBUG("\nKernel measurement dump path: %s\n", dump_kernel_path);
     }
     if (boot_order) {
-        DEBUG("BootOrder: [");
+        DEBUG("BootOrder: [ ");
         for (size_t i = 0; i < len_boot_order; i++) {
             DEBUG("0x%04x ", boot_order[i]);
         }
@@ -374,6 +379,8 @@ main(int argc, char *argv[])
     if (dbx_path) {
         DEBUG("DBX path: %s\n", dbx_path);
     }
+    DEBUG("OVMF version: %s\n", ovmf_version);
+    DEBUG("QEMU version: %s\n", qemu_version);
 
     uint8_t mrs[MR_LEN][SHA384_DIGEST_LENGTH];
 
@@ -385,7 +392,7 @@ main(int argc, char *argv[])
     }
 
     if (contains(mr_nums, len_mr_nums, INDEX_MRTD)) {
-        if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf)) {
+        if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf, qemu_version)) {
             printf("Failed to calculate event log for MRTD\n");
             goto out;
         }

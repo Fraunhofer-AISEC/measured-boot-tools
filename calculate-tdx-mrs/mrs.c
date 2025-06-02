@@ -76,7 +76,7 @@ calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module)
  *
  */
 int
-calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file)
+calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *qemu_version)
 {
     int ret = -1;
 
@@ -92,7 +92,7 @@ calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file)
     }
 
     uint8_t hash_mrtd[SHA384_DIGEST_LENGTH];
-    ret = measure_ovmf(hash_mrtd, ovmf_buf, ovmf_size);
+    ret = measure_ovmf(hash_mrtd, ovmf_buf, ovmf_size, qemu_version);
     if (ret) {
         printf("Failed to measure ovmf\n");
         goto out;

@@ -186,7 +186,8 @@ get_ovmf_metadata_offset(uint64_t *out_metadata_offset, uint8_t *raw_image, uint
 }
 
 int
-measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t raw_image_size)
+measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t raw_image_size,
+                const char *qemu_version)
 {
     DEBUG("Measuring OVMF size %ld\n", raw_image_size);
 
@@ -280,28 +281,40 @@ measure_ovmf(uint8_t digest[SHA384_DIGEST_LENGTH], uint8_t *raw_image, uint64_t 
             sec.data_offset, sec.raw_data_size, sec.memory_address, sec.memory_data_size, sec.type,
             sec.attributes, nr_pages);
 
-        for (uint64_t iter = 0; iter < nr_pages; iter++) {
-            if ((sec.attributes & TDX_METADATA_ATTRIBUTES_EXTEND_MEM_PAGE_ADD) == 0) {
-                DEBUG("\tMEM.PAGE.ADD\n");
-                td_call_mem_page_add(buffer128, sec.memory_address + iter * PAGE_SIZE);
-                EVP_DigestUpdate(ctx, buffer128, MRTD_EXTENSION_BUFFER_SIZE);
-            }
+        if (!strcmp(qemu_version, "9.2.0")) {
+            for (uint64_t iter = 0; iter < nr_pages; iter++) {
+                if ((sec.attributes & TDX_METADATA_ATTRIBUTES_EXTEND_MEM_PAGE_ADD) == 0) {
+                    DEBUG("\tMEM.PAGE.ADD\n");
+                    td_call_mem_page_add(buffer128, sec.memory_address + iter * PAGE_SIZE);
+                    EVP_DigestUpdate(ctx, buffer128, MRTD_EXTENSION_BUFFER_SIZE);
+                }
 
-            if (sec.attributes & TDX_METADATA_ATTRIBUTES_EXTENDMR) {
-                uint32_t granularity = TDH_MR_EXTEND_GRANULARITY;
-                uint32_t iteration = PAGE_SIZE / granularity;
-                DEBUG("\tMR.EXTEND %d pages\n", iteration);
-                for (uint32_t chunk_iter = 0; chunk_iter < iteration; chunk_iter++) {
-                    td_call_mr_extend(
-                        buffer3_128,
-                        sec.memory_address + iter * PAGE_SIZE + chunk_iter * granularity, raw_image,
-                        raw_image_size,
-                        sec.data_offset + iter * PAGE_SIZE + chunk_iter * granularity);
-                    EVP_DigestUpdate(ctx, buffer3_128[0], MRTD_EXTENSION_BUFFER_SIZE);
-                    EVP_DigestUpdate(ctx, buffer3_128[1], MRTD_EXTENSION_BUFFER_SIZE);
-                    EVP_DigestUpdate(ctx, buffer3_128[2], MRTD_EXTENSION_BUFFER_SIZE);
+                if (sec.attributes & TDX_METADATA_ATTRIBUTES_EXTENDMR) {
+                    uint32_t granularity = TDH_MR_EXTEND_GRANULARITY;
+                    uint32_t iteration = PAGE_SIZE / granularity;
+                    DEBUG("\tMR.EXTEND %d pages\n", iteration);
+                    for (uint32_t chunk_iter = 0; chunk_iter < iteration; chunk_iter++) {
+                        if (td_call_mr_extend(
+                            buffer3_128,
+                            sec.memory_address + iter * PAGE_SIZE + chunk_iter * granularity, raw_image,
+                            raw_image_size,
+                            sec.data_offset + iter * PAGE_SIZE + chunk_iter * granularity)) {
+                                printf("Failed to MR.EXTEND\n");
+                                goto out;
+                            }
+                        EVP_DigestUpdate(ctx, buffer3_128[0], MRTD_EXTENSION_BUFFER_SIZE);
+                        EVP_DigestUpdate(ctx, buffer3_128[1], MRTD_EXTENSION_BUFFER_SIZE);
+                        EVP_DigestUpdate(ctx, buffer3_128[2], MRTD_EXTENSION_BUFFER_SIZE);
+                    }
                 }
             }
+        } else if (!strcmp(qemu_version, "8.2.2")) {
+            // TODO add logic here
+            printf("QEMU version %s not yet supported\n", qemu_version);
+            goto out;
+        } else {
+            printf("QEMU version %s not supported\n", qemu_version);
+            goto out;
         }
     }
     EVP_DigestFinal_ex(ctx, digest, NULL);
