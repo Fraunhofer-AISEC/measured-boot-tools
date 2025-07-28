@@ -60,7 +60,7 @@ event_gpt(void *d, UEFI_GPT_DATA *data, size_t size, uint32_t eventlog_version);
         if (contains(pcr_nums, len_pcr_nums, active_pcr)) {                                        \
             char s[4096] = { 0 };                                                                  \
             int n = snprintf(s, sizeof(s), fmt, ##__VA_ARGS__);                                    \
-            ASSERT(n > 0);                                                                         \
+            ASSERT(n >= 0);                                                                        \
             mystrcat(&log[active_pcr], s);                                                         \
         }                                                                                          \
     } while (0)
@@ -75,7 +75,7 @@ event_gpt(void *d, UEFI_GPT_DATA *data, size_t size, uint32_t eventlog_version);
             } else {                                                                               \
                 n = snprintf(s, sizeof(s), "\tdescription: " fmt "\n", ##__VA_ARGS__);             \
             }                                                                                      \
-            ASSERT(n > 0);                                                                         \
+            ASSERT(n >= 0);                                                                        \
             mystrcat(&log[active_pcr], s);                                                         \
         }                                                                                          \
     } while (0)
