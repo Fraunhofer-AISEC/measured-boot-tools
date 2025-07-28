@@ -95,14 +95,13 @@ static void
 print_usage(const char *progname)
 {
     printf("\nUsage: %s [options...]\n", progname);
-    printf("\t-h,  --help\t\tPrint help text\n");
+    printf("\t-h,  --help\t\t\tPrint help text\n");
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-p,  --pcrs <nums>\t\tPCRs to be parsed as a comma separated list without spaces\n");
-    printf("\t-e,  --eventlog\t\tPrint the eventlog for the specified PCRs\n");
-    printf("\t-s,  --summary\t\tPrint the final extended PCR values\n");
+    printf("\t-e,  --eventlog\t\t\tPrint the eventlog for the specified PCRs\n");
+    printf("\t-s,  --summary\t\t\tPrint the final extended PCR values\n");
     printf("\t-a,  --aggregate\t\tPrint the aggregate PCR value over the selected PCRs\n");
-    printf(
-        "\t-i,  --in\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)\n");
+    printf("\t-i,  --in\t\t\tInput file (default: /sys/kernel/security/tpm0/binary_bios_measurements)\n");
     printf("\t-v,  --verbose\t\t\tPrint verbose debug output\n");
 }
 
@@ -203,12 +202,15 @@ main(int argc, char *argv[])
     cb_data.len_pcr_nums = len_pcr_nums;
     cb_data.pcr_nums = pcr_nums;
 
+    DEBUG("Parsing TPM eventlog..\n");
+
     if (tpm_parse_eventlog(&cb_data, input_file ? input_file : BIOS_MEASUREMENTS) < 0) {
         printf("Failed to parse eventlog\n");
         goto out;
     }
 
     if (print_eventlog) {
+        DEBUG("Printing eventlog..\n");
         if (format == FORMAT_JSON) {
             printf("[");
         }
@@ -235,6 +237,7 @@ main(int argc, char *argv[])
     }
 
     if (print_summary) {
+        DEBUG("Printing summary\n");
         if (format == FORMAT_JSON) {
             printf("[");
         }
