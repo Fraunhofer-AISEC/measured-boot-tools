@@ -912,7 +912,11 @@ LoadPeImage (
   const char *filename)
 {
   struct stat st;
-  stat(filename, &st);
+  int ret = stat(filename, &st);
+  if (ret) {
+    printf("Failed to get filesize of %s\n", filename);
+    return -1;
+  }
   uint64_t file_size = st.st_size;
 
   *buf = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
@@ -923,12 +927,14 @@ LoadPeImage (
   FILE *f = fopen(filename, "rb");
   if (!f) {
     printf("Failed to open %s\n", filename);
+    free(buf);
     return -1;
   }
   size_t data_read = fread(*buf, 1, file_size, f);
   fclose(f);
   if (data_read != (size_t)file_size) {
     printf("Failed to read file. Only read: %ld of %ld\n", data_read, file_size);
+    free(buf);
     return -1;
   }
   DEBUG("Read kernel pe/coff file %s with size %ld\n", filename, data_read);

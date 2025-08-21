@@ -52,19 +52,37 @@ extern EFI_GUID gEfiImageSecurityDatabaseGuid;
  *
  */
 int
-calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module)
+calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module, const char *mrseam)
 {
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
-    uint8_t hash_mrseam[SHA384_DIGEST_LENGTH];
-    int ret = hash_file(EVP_sha384(), hash_mrseam, tdx_module);
-    if (ret) {
-        printf("Failed to measure the TDX-module\n");
-        return -1;
-    }
+    if (tdx_module) {
 
-    evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam, "SEAMLDR Measurement: TDX-Module");
-    memcpy(mr, hash_mrseam, SHA384_DIGEST_LENGTH);
+        uint8_t hash_mrseam[SHA384_DIGEST_LENGTH];
+        int ret = hash_file(EVP_sha384(), hash_mrseam, tdx_module);
+        if (ret) {
+            printf("Failed to measure the TDX-module\n");
+            return -1;
+        }
+
+        evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam, "SEAMLDR Measurement: TDX-Module");
+        memcpy(mr, hash_mrseam, SHA384_DIGEST_LENGTH);
+
+    } else if (mrseam) {
+
+       uint8_t hash_mrseam[SHA384_DIGEST_LENGTH];
+        int ret = convert_hex_to_bin(mrseam, strlen(mrseam), hash_mrseam, sizeof(hash_mrseam));
+        if (ret) {
+            printf("Failed to convert MRTD hash\n");
+            return ret;
+        }
+
+        evlog_add(evlog, INDEX_MRSEAM, "TDX-Module", hash_mrseam, "SEAMLDR Measurement: TDX-Module");
+        memcpy(mr, hash_mrseam, SHA384_DIGEST_LENGTH);
+
+    } else {
+        printf("Neither TDX-Module nor MRSEAM hash specified\n");
+    }
 
     return 0;
 }
@@ -76,33 +94,51 @@ calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module)
  *
  */
 int
-calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *qemu_version)
+calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *mrtd, const char *qemu_version)
 {
     int ret = -1;
+    uint8_t *ovmf_buf = NULL;
 
     DEBUG("Calculating MRTD...\n");
 
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
-    uint8_t *ovmf_buf = NULL;
-    uint64_t ovmf_size = 0;
-    ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
-    if (ret) {
-        goto out;
+    if (ovmf_file)  {
+
+        uint64_t ovmf_size = 0;
+        ret = read_file(&ovmf_buf, &ovmf_size, ovmf_file);
+        if (ret) {
+            goto out;
+        }
+
+        uint8_t hash_mrtd[SHA384_DIGEST_LENGTH];
+        ret = measure_ovmf(hash_mrtd, ovmf_buf, ovmf_size, qemu_version);
+        if (ret) {
+            printf("Failed to measure ovmf\n");
+            goto out;
+        }
+
+        evlog_add(evlog, INDEX_MRTD, "OVMF", hash_mrtd,
+                "TDX Module Measurement: Initial TD contents (OVMF)");
+        memcpy(mr, hash_mrtd, SHA384_DIGEST_LENGTH);
+
+        ret = 0;
+    } else if (mrtd) {
+
+        uint8_t hash_mrtd[SHA384_DIGEST_LENGTH];
+        ret = convert_hex_to_bin(mrtd, strlen(mrtd), hash_mrtd, sizeof(hash_mrtd));
+        if (ret) {
+            printf("Failed to convert MRTD hash\n");
+            goto out;
+        }
+
+        evlog_add(evlog, INDEX_MRTD, "Firmware", hash_mrtd,
+                "TDX Module Measurement: Initial TD contents (firmware)");
+        memcpy(mr, hash_mrtd, SHA384_DIGEST_LENGTH);
+
+    } else {
+        printf("Neither OVMF nor MRTD hash specified\n");
     }
-
-    uint8_t hash_mrtd[SHA384_DIGEST_LENGTH];
-    ret = measure_ovmf(hash_mrtd, ovmf_buf, ovmf_size, qemu_version);
-    if (ret) {
-        printf("Failed to measure ovmf\n");
-        goto out;
-    }
-
-    evlog_add(evlog, INDEX_MRTD, "OVMF", hash_mrtd,
-              "TDX Module Measurement: Initial TD contents (OVMF)");
-    memcpy(mr, hash_mrtd, SHA384_DIGEST_LENGTH);
-
-    ret = 0;
 
 out:
     if (ovmf_buf)

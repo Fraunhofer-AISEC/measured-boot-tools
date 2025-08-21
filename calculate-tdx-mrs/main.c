@@ -38,7 +38,9 @@ print_usage(const char *progname)
     printf("\nUsage: %s [options...]\n", progname);
     printf("\t-m,  --mrs <num[,num...]>\tMeasurement registers to be calculated\n");
     printf("\t     --tdxmodule <file>\t\tThe filename of the TDX-module binary\n");
+    printf("\t     --mrseam <hex>\t\tThe MRSEAM hash (alternative to --tdxmodule if hash is supplied externally\n");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
+    printf("\t     --mrtd <hex>\t\tThe MRTD hash (alternative to --ovmf if hash is supplied externally)\n");
     printf("\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --ramdisk <file>\t\tThe filename of the initramfs\n");
@@ -91,7 +93,9 @@ main(int argc, char *argv[])
     const char *ramdisk = NULL;
     const char *cmdline = NULL;
     const char *ovmf = NULL;
+    const char *mrtd = NULL;
     const char *tdx_module = NULL;
+    const char *mrseam = NULL;
     const char *dump_kernel_path = NULL;
     const char *ovmf_version = "edk2-stable202502";
     const char *secure_boot_path = NULL;
@@ -160,6 +164,10 @@ main(int argc, char *argv[])
             ovmf = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--mrtd") && argc >= 2) {
+            mrtd = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--ovmfversion") && argc >= 2) {
             ovmf_version = argv[1];
             argv += 2;
@@ -170,6 +178,10 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if (!strcmp(argv[0], "--tdxmodule") && argc >= 2) {
             tdx_module = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--mrseam") && argc >= 2) {
+            mrseam = argv[1];
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-a") || !strcmp(argv[0], "--acpirsdp")) && argc >= 2) {
@@ -304,14 +316,14 @@ main(int argc, char *argv[])
         print_usage(progname);
         goto out;
     }
-    if (!ovmf && (contains(mr_nums, len_mr_nums, INDEX_MRTD) ||
+    if (!ovmf && !mrtd && (contains(mr_nums, len_mr_nums, INDEX_MRTD) ||
                   contains(mr_nums, len_mr_nums, INDEX_MRTD))) {
-        printf("OVMF must be specified\n");
+        printf("OVMF or MRTD hash must be specified\n");
         print_usage(progname);
         goto out;
     }
-    if (!tdx_module && contains(mr_nums, len_mr_nums, INDEX_MRSEAM)) {
-        printf("TDX-Module must be specified\n");
+    if (!tdx_module && !mrseam && contains(mr_nums, len_mr_nums, INDEX_MRSEAM)) {
+        printf("TDX-Module or MRSEAM hash must be specified\n");
         print_usage(progname);
         goto out;
     }
@@ -385,14 +397,14 @@ main(int argc, char *argv[])
     uint8_t mrs[MR_LEN][SHA384_DIGEST_LENGTH];
 
     if (contains(mr_nums, len_mr_nums, INDEX_MRSEAM)) {
-        if (calculate_mrseam(mrs[INDEX_MRSEAM], &evlog, tdx_module)) {
+        if (calculate_mrseam(mrs[INDEX_MRSEAM], &evlog, tdx_module, mrseam)) {
             printf("Failed to calculate event log for MRSEAM\n");
             goto out;
         }
     }
 
     if (contains(mr_nums, len_mr_nums, INDEX_MRTD)) {
-        if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf, qemu_version)) {
+        if (calculate_mrtd(mrs[INDEX_MRTD], &evlog, ovmf, mrtd, qemu_version)) {
             printf("Failed to calculate event log for MRTD\n");
             goto out;
         }

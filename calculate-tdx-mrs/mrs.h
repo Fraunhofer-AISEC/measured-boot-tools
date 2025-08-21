@@ -5,10 +5,10 @@
 #include "acpi.h"
 
 int
-calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module);
+calculate_mrseam(uint8_t *mr, eventlog_t *evlog, const char *tdx_module, const char *mrseam);
 
 int
-calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *qemu_version);
+calculate_mrtd(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file, const char *mrtd, const char *qemu_version);
 
 int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
