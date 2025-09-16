@@ -26,7 +26,7 @@ int
 calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table);
 
 int
-calculate_pcr6(uint8_t *pcr, eventlog_t *evlog);
+calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file);
 
 int
 calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level, const char *secure_boot,

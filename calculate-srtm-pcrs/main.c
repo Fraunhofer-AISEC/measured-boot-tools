@@ -59,6 +59,7 @@ print_usage(const char *progname)
     printf("\t     --db <file> UEFI secure boot DB variable data file\n");
     printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
+    printf("\t     --systemuuid\t\tPath to DMI System-UUID file to be extended into PCR6\n");
     printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
     printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
     printf("\n");
@@ -74,6 +75,7 @@ main(int argc, char *argv[])
     const char *cmdline = NULL;
     const char *ovmf = NULL;
     const char *efi_gpt = NULL;
+    const char *system_uuid = NULL;
     const char *grubcmds = NULL;
     const char *sbat_level = NULL;
     const char *dump_pei_path = NULL;
@@ -291,6 +293,10 @@ main(int argc, char *argv[])
             efi_gpt = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--systemuuid")) {
+            system_uuid = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--bootorder") && argc >= 2) {
             boot_order_str = (char *)malloc(strlen(argv[1]) + 1);
             if (!boot_order_str) {
@@ -452,7 +458,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 6)) {
-        if (calculate_pcr6(pcr[6], &evlog)) {
+        if (calculate_pcr6(pcr[6], &evlog, system_uuid)) {
             printf("Failed to calculate event log for PCR 6\n");
             goto out;
         }

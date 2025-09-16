@@ -15,6 +15,7 @@
 #include <libgen.h>
 #include <wchar.h>
 #include <uchar.h>
+#include <ctype.h>
 
 #include <openssl/pkcs7.h>
 #include <openssl/ssl.h>
@@ -534,9 +535,46 @@ out:
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr6(uint8_t *pcr, eventlog_t *evlog)
+calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
+
+    // DMI/SMBIOS Syste-UUID
+    if (system_uuid_file) {
+        uint8_t *system_uuid_buf = NULL;
+        uint64_t system_uuid_size = 0;
+        int ret = read_file(&system_uuid_buf, &system_uuid_size, system_uuid_file);
+        if (ret != 0 || system_uuid_size == 0) {
+            printf("Failed to load %s\n", system_uuid_file);
+            return -1;
+        }
+
+        // Remove trailing newline if present
+        if (system_uuid_buf[system_uuid_size - 1] == '\n') {
+            system_uuid_buf[system_uuid_size - 1] = '\0';
+            system_uuid_size--;
+        }
+
+        // Convert to uppercase in place
+        for (size_t i = 0; i < system_uuid_size; i++) {
+            system_uuid_buf[i] = (uint8_t)toupper(system_uuid_buf[i]);
+        }
+
+        // Prepend "UUID: "
+        const char *prefix = "UUID: ";
+        size_t tbh_len = system_uuid_size + strlen(prefix);
+        uint8_t tbh[tbh_len + strlen(prefix) + 1];
+        memset(tbh, 0x0, sizeof(tbh));
+        memcpy(tbh, prefix, strlen(prefix));
+        memcpy(tbh + strlen(prefix), system_uuid_buf, system_uuid_size);
+
+        // Hash EV_COMPACT_HASH
+        uint8_t hash_system_uuid[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_system_uuid, tbh, tbh_len);
+        evlog_add(evlog, 6, "EV_COMPACT_HASH", hash_system_uuid, (const char *)tbh);
+
+        hash_extend(EVP_sha256(), pcr, hash_system_uuid, SHA256_DIGEST_LENGTH);
+    }
 
     // EV_SEPARATOR
     uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
