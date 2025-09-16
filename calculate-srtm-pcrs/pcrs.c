@@ -659,8 +659,8 @@ calculate_pcr8(uint8_t *pcr, eventlog_t *evlog, const char *grubcmds_file)
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros,
-               const char *initrd, char **paths, size_t num_paths)
+calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
+               const char *initrd, char **paths, size_t num_paths, bool qemu)
 {
     int ret = -1;
     char16_t *wcmdline = NULL;
@@ -679,14 +679,20 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
         uint8_t *cmdline_buf = NULL;
         uint64_t cmdline_size = 0;
         ret = read_file(&cmdline_buf, &cmdline_size, cmdline);
-        if (ret != 0) {
+        if (ret != 0 || cmdline_size == 0) {
             printf("Failed to load %s\n", cmdline);
             goto out;
         }
 
+        // Strip trailing newline if specified
+        if (strip_newline && cmdline_buf[cmdline_size - 1] == '\n') {
+            cmdline_buf[cmdline_size - 1] = '\0';
+            cmdline_size--;
+        }
+
         // OvmfPkg/Library/X86QemuLoadImageLib/X86QemuLoadImageLib.c#L570
         // OVMF appends initrd=initrd if initial ramdisk was specified
-        if (initrd) {
+        if (qemu && initrd) {
             uint64_t old_size = cmdline_size;
             const char *append = " initrd=initrd";
             cmdline_size += strlen(append);
@@ -714,11 +720,11 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
         DEBUG("cmdline wchar len: %lu\n", cmdline_len);
         print_data_debug((const uint8_t *)wcmdline, cmdline_len, "cmdline");
 
-        uint8_t hash_ev_event_tag[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_ev_event_tag, (uint8_t *)wcmdline, cmdline_len);
-        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_ev_event_tag, (const char *)cmdline_str);
+        uint8_t hash_cmdline[SHA256_DIGEST_LENGTH] = { 0x0 };
+        hash_buf(EVP_sha256(), hash_cmdline, (uint8_t *)wcmdline, cmdline_len);
+        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_cmdline, (const char *)cmdline_str);
 
-        hash_extend(EVP_sha256(), pcr, hash_ev_event_tag, SHA256_DIGEST_LENGTH);
+        hash_extend(EVP_sha256(), pcr, hash_cmdline, SHA256_DIGEST_LENGTH);
         free(cmdline_buf);
         free(cmdline_str);
     }
@@ -732,11 +738,11 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
             goto out;
         }
 
-        uint8_t hash_ev_event_tag[SHA256_DIGEST_LENGTH];
-        hash_buf(EVP_sha256(), hash_ev_event_tag, initrd_buf, initrd_size);
-        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_ev_event_tag, initrd);
+        uint8_t hash_initrd[SHA256_DIGEST_LENGTH] = { 0x0 };
+        hash_buf(EVP_sha256(), hash_initrd, initrd_buf, initrd_size);
+        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_initrd, initrd);
 
-        hash_extend(EVP_sha256(), pcr, hash_ev_event_tag, SHA256_DIGEST_LENGTH);
+        hash_extend(EVP_sha256(), pcr, hash_initrd, SHA256_DIGEST_LENGTH);
         free(initrd_buf);
     }
 

@@ -32,6 +32,7 @@ print_usage(const char *progname)
     printf("\t-a   --aggregate\t\tPrint aggregate PCR value\n");
     printf("\t-p,  --pcrs <num[,num...]>\tPCRs to be calculated\n");
     printf("\t-v   --verbose\t\t\tPrint verbose debug output\n");
+    printf("\t-q   --qemu\t\tQEMU VM (appends initrd=initrd to kernel cmdline\n)");
     printf("\t-o,  --ovmf <file>\t\tThe filename of the OVMF.fd file\n");
     printf("\t-c,  --config\t\t\tPath to kernel configuration file\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of direct boot kernel images measured into PCR4\n");
@@ -42,6 +43,7 @@ print_usage(const char *progname)
     printf("\t     --grubcmds\t\t\tPath to GRUB command file file for PCR8\n");
     printf("\t     --cmdline\t\t\tKernel commandline, required for some PCR 9 calculations\n");
     printf("\t     --addzeros <num>\t\tAdd <num> trailing zeros to kernel cmdline (default: 1)\n");
+    printf("\t     --stripnewline\t\tStrip potential newline character from the cmdline\n");
     printf("\t     --acpirsdp\t\t\tPath to QEMU etc/acpi/rsdp file for PCR1\n");
     printf("\t     --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t     --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
@@ -81,7 +83,9 @@ main(int argc, char *argv[])
     const char *kek_path = NULL;
     const char *db_path = NULL;
     const char *dbx_path = NULL;
+    bool qemu = false;
     ssize_t cmdline_trailing_zeros = 1;
+    bool cmdline_strip_newline = false;
     bool print_event_log = false;
     bool print_summary = false;
     bool print_aggregate = false;
@@ -158,6 +162,10 @@ main(int argc, char *argv[])
             debug_output = true;
             argv++;
             argc--;
+        } else if (!strcmp(argv[0], "-q") || !strcmp(argv[0], "--qemu")) {
+            qemu = true;
+            argv++;
+            argc--;
         } else if ((!strcmp(argv[0], "-o") || !strcmp(argv[0], "--ovmf")) && argc >= 2) {
             ovmf = argv[1];
             argv += 2;
@@ -230,6 +238,10 @@ main(int argc, char *argv[])
             cmdline_trailing_zeros = (size_t)num;
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--stripnewline")) {
+            cmdline_strip_newline = true;
+            argv++;
+            argc--;
         } else if (!strcmp(argv[0], "--acpirsdp") && argc >= 2) {
             acpi_files.acpi_rsdp_size = get_file_size(argv[1]);
             if (acpi_files.acpi_rsdp_size < 0) {
@@ -352,6 +364,7 @@ main(int argc, char *argv[])
     if (cmdline) {
         DEBUG("\tCmdline:    %s\n", cmdline);
     }
+    DEBUG("\tQEMU:       %s\n", qemu ? "true" : "false");
     DEBUG("\tOVMF:       %s\n", ovmf);
     DEBUG("\tEventlog:   %d\n", print_event_log);
     DEBUG("\tSummary:    %d\n", print_summary);
@@ -458,8 +471,8 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 9)) {
-        if (calculate_pcr9(pcr[9], &evlog, cmdline, cmdline_trailing_zeros, initrd, paths,
-                           num_paths)) {
+        if (calculate_pcr9(pcr[9], &evlog, cmdline, cmdline_trailing_zeros, cmdline_strip_newline, initrd, paths,
+                           num_paths, qemu)) {
             printf("Failed to calculate event log for PCR 9\n");
             goto out;
         }

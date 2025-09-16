@@ -36,5 +36,5 @@ int
 calculate_pcr8(uint8_t *pcr, eventlog_t *evlog, const char *grubcmds_file);
 
 int
-calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros,
-               const char *initrd, char **paths, size_t num_paths);
+calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
+               const char *initrd, char **paths, size_t num_paths, bool qemu);

@@ -368,7 +368,7 @@ out:
  *
  */
 int
-calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t trailing_zeros)
+calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t trailing_zeros, bool strip_newline)
 {
     int ret = -1;
 
@@ -382,9 +382,17 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t
     uint8_t *cmdline_buf;
     size_t cmdline_size = 0;
     ret = read_file(&cmdline_buf, &cmdline_size, cmdline_file);
-    if (ret) {
+    if (ret != 0 || cmdline_size == 0) {
+        printf("Failed to load %s\n", cmdline_file);
         return -1;
     }
+
+    // Strip trailing newline if specified
+    if (strip_newline && cmdline_buf[cmdline_size - 1] == '\n') {
+        cmdline_buf[cmdline_size - 1] = '\0';
+        cmdline_size--;
+    }
+
     DEBUG("cmdline size: %ld\n", cmdline_size);
 
     size_t cmdline_len = 0;
@@ -395,9 +403,13 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t
         goto out;
     }
 
+    char *cmdline_str = (char *)malloc(cmdline_size + 1);
+    memset(cmdline_str, 0x0, cmdline_size + 1);
+    memcpy(cmdline_str, cmdline_buf, cmdline_size);
+
     uint8_t hash_ev_event_tag[SHA384_DIGEST_LENGTH];
     hash_buf(EVP_sha384(), hash_ev_event_tag, (uint8_t *)wcmdline, cmdline_len);
-    evlog_add(evlog, INDEX_RTMR2, "EV_EVENT_TAG", hash_ev_event_tag, cmdline_file);
+    evlog_add(evlog, INDEX_RTMR2, "EV_EVENT_TAG", hash_ev_event_tag, cmdline_str);
 
     hash_extend(EVP_sha384(), mr, hash_ev_event_tag, SHA384_DIGEST_LENGTH);
 
@@ -406,6 +418,9 @@ calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t
 out:
     if (cmdline_buf) {
         free(cmdline_buf);
+    }
+    if (cmdline_str) {
+        free(cmdline_str);
     }
     if (wcmdline) {
         free(wcmdline);
