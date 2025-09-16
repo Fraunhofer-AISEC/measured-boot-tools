@@ -574,6 +574,8 @@ calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file)
         evlog_add(evlog, 6, "EV_COMPACT_HASH", hash_system_uuid, (const char *)tbh);
 
         hash_extend(EVP_sha256(), pcr, hash_system_uuid, SHA256_DIGEST_LENGTH);
+
+        free(system_uuid_buf);
     }
 
     // EV_SEPARATOR
