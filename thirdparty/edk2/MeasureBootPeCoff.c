@@ -976,6 +976,7 @@ MeasurePeImage (
   Status        = EFI_UNSUPPORTED;
   SectionHeader = NULL;
   ImageAddress = (EFI_PHYSICAL_ADDRESS) buf;
+  EVP_MD_CTX *ctx = NULL;
 
   DEBUG("Measuring PE Image..\n");
 
@@ -1028,7 +1029,7 @@ MeasurePeImage (
 
   // 2.  Initialize a SHA hash context.
 
-  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+  ctx = EVP_MD_CTX_new();
   if (!ctx) {
       goto Finish;
   }
