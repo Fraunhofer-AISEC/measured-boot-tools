@@ -60,6 +60,7 @@ print_usage(const char *progname)
     printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --systemuuid\t\tPath to DMI System-UUID file to be extended into PCR6\n");
+    printf("\t     --efihob\t\tPath to an EFI handoff table optionally measured into PCR1\n");
     printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
     printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
     printf("\n");
@@ -85,6 +86,7 @@ main(int argc, char *argv[])
     const char *kek_path = NULL;
     const char *db_path = NULL;
     const char *dbx_path = NULL;
+    const char *efi_hob = NULL;
     bool qemu = false;
     ssize_t cmdline_trailing_zeros = 1;
     bool cmdline_strip_newline = false;
@@ -192,6 +194,10 @@ main(int argc, char *argv[])
         } else if (!strcmp(argv[0], "--bootloader") && argc >= 2) {
             bootloaders = (char **)realloc(bootloaders, sizeof(char *) * (num_bootloaders + 1));
             bootloaders[num_bootloaders++] = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--efihob") && argc >= 2) {
+            efi_hob = argv[1];
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--bootxxxx") && argc >= 2) {
@@ -382,6 +388,9 @@ main(int argc, char *argv[])
     for (size_t i = 0; i < num_bootloaders; i++) {
         DEBUG("\tBootloader: %s\n", bootloaders[i]);
     }
+    if (efi_hob) {
+        DEBUG("\tEFI Handoff Table: %s\n", efi_hob);
+    }
     for (size_t i = 0; i < num_paths; i++) {
         DEBUG("\tPaths: %s\n", paths[i]);
     }
@@ -427,7 +436,7 @@ main(int argc, char *argv[])
     }
     if (contains(pcr_nums, len_pcr_nums, 1)) {
         if (calculate_pcr1(pcr[1], &evlog, &acpi_files, boot_order, len_boot_order, bootxxxx,
-                           num_bootxxxx)) {
+                           num_bootxxxx, efi_hob)) {
             printf("Failed to calculate event log for PCR 1\n");
             goto out;
         }

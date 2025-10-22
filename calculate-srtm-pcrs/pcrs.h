@@ -10,7 +10,7 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
 
 int
 calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boot_order,
-               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx);
+               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, const char *efi_hob_file);
 
 int
 calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drivers);

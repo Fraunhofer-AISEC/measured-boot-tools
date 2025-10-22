@@ -181,9 +181,11 @@ out:
  */
 int
 calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boot_order,
-               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx)
+               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, const char *efi_hob_file)
 {
     int ret = -1;
+    uint8_t *hob_buf = NULL;
+    uint64_t hob_size = 0;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -192,6 +194,23 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boo
     if (ret) {
         printf("failed to calculate acpi tables\n");
         goto out;
+    }
+
+    // EV_EFI_HANDOFF_TABLES
+    if (efi_hob_file) {
+        ret = read_file(&hob_buf, &hob_size, efi_hob_file);
+        if (ret != 0) {
+            printf("Failed to load %s\n", efi_hob_file);
+            goto out;
+        }
+        DEBUG("Read EFI HOB size %ld\n", hob_size);
+        print_data_debug(hob_buf, hob_size, "EFI_HOB");
+
+        uint8_t hash_hob[SHA256_DIGEST_LENGTH];
+        hash_buf(EVP_sha256(), hash_hob, hob_buf, hob_size);
+
+        evlog_add(evlog, 1, "EV_EFI_HANDOFF_TABLES", hash_hob, "EFI handoff table");
+        hash_extend(EVP_sha256(), pcr, hash_hob, SHA256_DIGEST_LENGTH);
     }
 
     // EV_EFI_VARIABLE_BOOT boot variables
@@ -218,6 +237,8 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boo
 out:
     if (ev_separator)
         OPENSSL_free(ev_separator);
+    if (hob_buf)
+        free(hob_buf);
     return ret;
 }
 
