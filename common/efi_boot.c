@@ -20,6 +20,7 @@
 #include "SecMain.h"
 #include "ImageAuthentication.h"
 #include "UefiTcgPlatform.h"
+#include "GlobalVariable.h"
 
 #include "hash.h"
 #include "common.h"
@@ -199,14 +200,38 @@ calculate_efi_boot_vars(const EVP_MD *md, uint8_t *mr, uint32_t mr_index, eventl
             uint8_t *file_buf = NULL;
             size_t file_size = 0;
             uint8_t hash_efi_variable_bootxxxx[EVP_MD_size(md)];
+
+            // Read file with binary efi variable data. Variable data can either be with a
+            // full UEFI_VARIABLE_DATA header or with a 4-byte efi variable attributes header
+            // as written to /sys/firmware/efi/efivars
             ret = read_file(&file_buf, &file_size, bootxxxx[i]);
             if (ret) {
-                printf("failed to hash file %s\n", bootxxxx[i]);
+                printf("failed to read file %s\n", bootxxxx[i]);
                 return -1;
             }
-            // Extract data from efivars files
-            print_data_debug(file_buf + 4, file_size - 4, "Boot####");
-            hash_buf(md, hash_efi_variable_bootxxxx, file_buf + 4, file_size - 4);
+
+            // Data in the format as written to /sys/firmware/efi/efivars has a 4-byte
+            // efi variable attributes header
+            size_t offset = 4;
+
+            // Check if variable begins with UEFI_VARIABLE_DATA header, which is not extended
+            if (file_size > sizeof(UEFI_VARIABLE_DATA)) {
+                UEFI_VARIABLE_DATA *var_data = (UEFI_VARIABLE_DATA *)file_buf;
+
+                // Check if VariableName is the EFI global variable GUID
+                if (memcmp(&var_data->VariableName, &gEfiGlobalVariableGuid, sizeof(EFI_GUID)) == 0) {
+                    // If so, deliver the offset where VariableData starts, which is extended
+                    offset = sizeof(EFI_GUID) +
+                        sizeof(var_data->UnicodeNameLength) +
+                        sizeof(var_data->VariableDataLength) +
+                        var_data->UnicodeNameLength * sizeof(CHAR16);
+
+                    DEBUG("VariableData offset: %zu (0x%zx)\n", offset, offset);
+                }
+            }
+
+            print_data_debug(file_buf + offset, file_size - offset, "Boot####");
+            hash_buf(md, hash_efi_variable_bootxxxx, file_buf + offset, file_size - offset);
             evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_bootxxxx,
                       "VariableName - Boot####, VendorGuid - 8BE4DF61-93CA-11D2-AA0D-00E098032B8C");
             hash_extend(md, mr, hash_efi_variable_bootxxxx, EVP_MD_size(md));

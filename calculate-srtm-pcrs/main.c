@@ -52,7 +52,7 @@ print_usage(const char *progname)
     printf(
         "\t     --path\t\t\tPath to folder/file to be extended into PCR9, e.g. kernel (multiple --path possible)\n");
     printf("\t     --bootorder <num>[,<num>,...]\t\tUEFI boot order variable as a comma separated list of integers\n");
-    printf("\t     --bootxxxx <file> UEFI Boot#### variable data file (multiple possible)\n");
+    printf("\t     --bootxxxx <file> UEFI Boot#### variable data file as written to /sys/firmware/efi/efivars (multiple possible)\n");
     printf("\t     --secureboot <file> UEFI secure boot SecureBoot variable data file\n");
     printf("\t     --pk <file> UEFI secure boot Platform Key (PK) variable data file\n");
     printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file\n");
