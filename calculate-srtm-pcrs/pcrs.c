@@ -41,6 +41,7 @@
 #include "gpt.h"
 #include "acpi.h"
 #include "secureboot.h"
+#include "cmdline.h"
 
 /**
  * Calculates PCR 0
@@ -181,7 +182,8 @@ out:
  */
 int
 calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boot_order,
-               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, const char *efi_hob_file)
+               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, bool no_boot_vars,
+               const char *efi_hob_file)
 {
     int ret = -1;
     uint8_t *hob_buf = NULL;
@@ -214,10 +216,12 @@ calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boo
     }
 
     // EV_EFI_VARIABLE_BOOT boot variables
-    ret = calculate_efi_boot_vars(EVP_sha256(), pcr, 1, evlog, boot_order, len_boot_order, bootxxxx, num_bootxxxx);
-    if (ret) {
-        printf("Failed to calculate EFI boot variables\n");
-        goto out;
+    if (!no_boot_vars) {
+        ret = calculate_efi_boot_vars(EVP_sha256(), pcr, 1, evlog, boot_order, len_boot_order, bootxxxx, num_bootxxxx);
+        if (ret) {
+            printf("Failed to calculate EFI boot variables\n");
+            goto out;
+        }
     }
 
 
@@ -560,7 +564,7 @@ calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
-    // DMI/SMBIOS Syste-UUID
+    // DMI/SMBIOS System-UUID
     if (system_uuid_file) {
         uint8_t *system_uuid_buf = NULL;
         uint64_t system_uuid_size = 0;
@@ -724,7 +728,6 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
                const char *initrd, char **paths, size_t num_paths, bool qemu)
 {
     int ret = -1;
-    char16_t *wcmdline = NULL;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -737,57 +740,12 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
     }
 
     if (cmdline) {
-        uint8_t *cmdline_buf = NULL;
-        uint64_t cmdline_size = 0;
-        ret = read_file(&cmdline_buf, &cmdline_size, cmdline);
-        if (ret != 0 || cmdline_size == 0) {
-            printf("Failed to load %s\n", cmdline);
-            goto out;
+        ret = calculate_cmdline(pcr, evlog, cmdline, trailing_zeros, strip_newline, initrd, qemu,
+            9, "EV_EVENT_TAG");
+        if (ret) {
+            printf("Failed to calculate cmdline\n");
+            return ret;
         }
-
-        // Strip trailing newline if specified
-        if (strip_newline && cmdline_buf[cmdline_size - 1] == '\n') {
-            cmdline_buf[cmdline_size - 1] = '\0';
-            cmdline_size--;
-        }
-
-        // OvmfPkg/Library/X86QemuLoadImageLib/X86QemuLoadImageLib.c#L570
-        // OVMF appends initrd=initrd if initial ramdisk was specified
-        if (qemu && initrd) {
-            uint64_t old_size = cmdline_size;
-            const char *append = " initrd=initrd";
-            cmdline_size += strlen(append);
-            cmdline_buf = (uint8_t *)realloc(cmdline_buf, cmdline_size);
-            memcpy(cmdline_buf + old_size, append, strlen(append));
-        }
-
-        char *cmdline_str = (char *)malloc(cmdline_size + 1);
-        memset(cmdline_str, 0x0, cmdline_size + 1);
-        memcpy(cmdline_str, cmdline_buf, cmdline_size);
-
-        // EV_EVENT_TAG kernel commandline (OVMF uses CHAR16)
-        size_t cmdline_len = 0;
-        wcmdline = convert_to_char16((const char *)cmdline_buf, cmdline_size, &cmdline_len,
-                                     trailing_zeros);
-        if (!wcmdline) {
-            printf("Failed to convert to wide character string\n");
-            free(cmdline_buf);
-            free(cmdline_str);
-            return -1;
-        }
-
-        DEBUG("cmdline file size: %lu\n", cmdline_size);
-        DEBUG("cmdline strlen: %lu\n", strlen(cmdline_str));
-        DEBUG("cmdline wchar len: %lu\n", cmdline_len);
-        print_data_debug((const uint8_t *)wcmdline, cmdline_len, "cmdline");
-
-        uint8_t hash_cmdline[SHA256_DIGEST_LENGTH] = { 0x0 };
-        hash_buf(EVP_sha256(), hash_cmdline, (uint8_t *)wcmdline, cmdline_len);
-        evlog_add(evlog, 9, "EV_EVENT_TAG", hash_cmdline, (const char *)cmdline_str);
-
-        hash_extend(EVP_sha256(), pcr, hash_cmdline, SHA256_DIGEST_LENGTH);
-        free(cmdline_buf);
-        free(cmdline_str);
     }
 
     if (initrd) {
@@ -796,7 +754,7 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
         ret = read_file(&initrd_buf, &initrd_size, initrd);
         if (ret != 0) {
             printf("Failed to load %s\n", initrd);
-            goto out;
+            return ret;
         }
 
         uint8_t hash_initrd[SHA256_DIGEST_LENGTH] = { 0x0 };
@@ -809,9 +767,32 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
 
     ret = 0;
 
-out:
-    if (wcmdline)
-        free(wcmdline);
-
     return ret;
+}
+
+/**
+ * Calculates PCR 9
+ *
+ *
+ * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
+ *
+ * @param pcr Out buffer containing the final hash of the PCR
+ * @param evlog The event log to record the extend operations in
+ */
+int
+calculate_pcr12(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
+               const char *initrd, bool qemu)
+{
+    memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
+
+    if (cmdline) {
+        int ret = calculate_cmdline(pcr, evlog, cmdline, trailing_zeros, strip_newline, initrd, qemu,
+            12, "EV_IPL");
+        if (ret) {
+            printf("Failed to calculate cmdline\n");
+            return ret;
+        }
+    }
+
+    return 0;
 }

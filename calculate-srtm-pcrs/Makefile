@@ -30,6 +30,7 @@ CSRS := \
 	eventlog.c \
 	paths.c \
 	pcrs.c \
+	cmdline.c \
 	../thirdparty/edk2/MeasureBootPeCoff.c \
 	../thirdparty/edk2/SecMain.c \
 	../thirdparty/LzmaCustomDecompressLib/LzmaDecompress.c \

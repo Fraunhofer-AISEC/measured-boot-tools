@@ -10,7 +10,8 @@ calculate_pcr0(uint8_t *pcr, eventlog_t *evlog, const char *ovmf_file, const cha
 
 int
 calculate_pcr1(uint8_t *pcr, eventlog_t *evlog, acpi_files_t *cfg, uint16_t *boot_order,
-               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, const char *efi_hob_file);
+               size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx, bool no_boot_vars,
+               const char *efi_hob_file);
 
 int
 calculate_pcr2(uint8_t *pcr, eventlog_t *evlog, char **drivers, size_t num_drivers);
@@ -38,3 +39,7 @@ calculate_pcr8(uint8_t *pcr, eventlog_t *evlog, const char *grubcmds_file);
 int
 calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
                const char *initrd, char **paths, size_t num_paths, bool qemu);
+
+int
+calculate_pcr12(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
+               const char *initrd, bool qemu);
