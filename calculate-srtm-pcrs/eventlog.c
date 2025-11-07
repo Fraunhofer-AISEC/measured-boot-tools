@@ -22,6 +22,39 @@ encode_hex(const uint8_t *bin, int length)
     return hex;
 }
 
+static char *
+json_escape(const char *input) {
+    size_t len = strlen(input);
+    // Worst case: every character needs escaping: 6x larger
+    char *escaped = malloc(len * 6 + 1);
+    if (!escaped) {
+        return NULL;
+    }
+
+    char *out = escaped;
+    for (const char *p = input; *p; p++) {
+        switch (*p) {
+            case '\"': strcpy(out, "\\\""); out += 2; break;
+            case '\\': strcpy(out, "\\\\"); out += 2; break;
+            case '\b': strcpy(out, "\\b");  out += 2; break;
+            case '\f': strcpy(out, "\\f");  out += 2; break;
+            case '\n': strcpy(out, "\\n");  out += 2; break;
+            case '\r': strcpy(out, "\\r");  out += 2; break;
+            case '\t': strcpy(out, "\\t");  out += 2; break;
+            default:
+                if ((unsigned char)*p < 0x20) {
+                    // Escape other control characters as \u00XX
+                    sprintf(out, "\\u%04x", (unsigned char)*p);
+                    out += 6;
+                } else {
+                    *out++ = *p;
+                }
+        }
+    }
+    *out = '\0';
+    return escaped;
+}
+
 int
 evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash, const char *desc)
 {
@@ -29,6 +62,12 @@ evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash
     char *hashstr = encode_hex(hash, SHA256_DIGEST_LENGTH);
     if (!hashstr) {
         printf("Failed to allocate memory\n");
+        return -1;
+    }
+
+    char *json_desc = json_escape(desc);
+    if (!json_desc) {
+        printf("Failed to escape description string");
         return -1;
     }
 
@@ -42,7 +81,7 @@ evlog_add(eventlog_t *evlog, uint32_t pcr_index, const char *name, uint8_t *hash
                        "\n\t\"sha256\":\"%s\","
                        "\n\t\"description\":\"PCR%d: %s\""
                        "\n},\n",
-                       name, pcr_index, hashstr, pcr_index, desc);
+                       name, pcr_index, hashstr, pcr_index, json_desc);
     } else if (evlog->format == FORMAT_TEXT) {
         ret = snprintf(s, sizeof(s),
                        "name: %s"
