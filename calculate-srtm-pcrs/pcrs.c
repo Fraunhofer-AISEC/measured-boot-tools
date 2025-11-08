@@ -340,7 +340,7 @@ calculate_pcr3(uint8_t *pcr, eventlog_t *evlog)
 }
 
 /**
- * Calculates PCR 4 for systems without bootloader
+ * Calculates PCR 4
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
@@ -462,7 +462,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
 }
 
 /**
- * Calculates PCR 5 for systems without bootloader
+ * Calculates PCR 5
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
  *
@@ -471,12 +471,15 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
  * @param efi_partition_table The path to the EFI partition table file
  */
 int
-calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table)
+calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table,
+                const char **loader_conf_files, size_t num_loader_conf_files)
 {
     int ret = -1;
     char *description = NULL;
     uint8_t *gpt_buf = NULL;
     uint64_t gpt_size = 0;
+    uint8_t *loader_conf_buf = NULL;
+    uint64_t loader_conf_size = 0;
 
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
 
@@ -499,10 +502,12 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table)
         int ret = read_file(&gpt_buf, &gpt_size, efi_partition_table);
         if (ret != 0) {
             printf("Failed to load %s\n", efi_partition_table);
-            return -1;
+            ret = -1;
+            goto out;
         }
         if (gpt_size < 92) {
             printf("GPT file too small\n");
+            ret = -1;
             goto out;
         }
 
@@ -512,12 +517,36 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table)
         char *description = write_gpt_header((UEFI_PARTITION_TABLE_HEADER *)gpt_buf);
         if (!description) {
             printf("Failed to write GPT header\n");
+            ret = -1;
             goto out;
         }
 
         evlog_add(evlog, 5, "EV_EFI_GPT_EVENT", hash_gpt, description);
         hash_extend(EVP_sha256(), pcr, hash_gpt, SHA256_DIGEST_LENGTH);
         free(description);
+    }
+
+    // Measure bootloader configuration files if present (e.g., systemd-boot loader.conf)
+    if (loader_conf_files) {
+        for (size_t i = 0; i < num_loader_conf_files; i++) {
+            if (!loader_conf_files[i]) {
+                printf("bootloader configuration file %ld is nil\n", i);
+                ret = -1;
+                goto out;
+            }
+
+            ret = read_file(&loader_conf_buf, &loader_conf_size, loader_conf_files[i]);
+            if (ret != 0) {
+                printf("Failed to load %s\n", loader_conf_files[i]);
+                goto out;
+            }
+
+            uint8_t hash_loader_conf[SHA256_DIGEST_LENGTH] = { 0 };
+            hash_buf(EVP_sha256(), hash_loader_conf, loader_conf_buf, loader_conf_size);
+            evlog_add(evlog, 5, "EV_EVENT_TAG", hash_loader_conf, loader_conf_files[i]);
+
+            hash_extend(EVP_sha256(), pcr, hash_loader_conf, SHA256_DIGEST_LENGTH);
+        }
     }
 
     // EV_EFI_ACTION "Exit Boot Services Invocation"
@@ -547,6 +576,8 @@ out:
         free(gpt_buf);
     if (description)
         free(description);
+    if (loader_conf_buf)
+        free(loader_conf_buf);
 
     return ret;
 }

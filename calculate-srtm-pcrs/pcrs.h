@@ -24,7 +24,8 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
                const char **bootloader_files, size_t num_bootloader_files);
 
 int
-calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table);
+calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table,
+                const char **loader_conf_files, size_t num_loader_conf_files);
 
 int
 calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file);

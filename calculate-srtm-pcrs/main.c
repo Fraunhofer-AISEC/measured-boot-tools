@@ -108,6 +108,8 @@ main(int argc, char *argv[])
     size_t num_uefi_drivers = 0;
     char **bootloaders = NULL;
     size_t num_bootloaders = 0;
+    char **loader_confs = NULL;
+    size_t num_loader_confs = 0;
     char **paths = NULL;
     size_t num_paths = 0;
     eventlog_t evlog = { .format = FORMAT_TEXT, .log = { 0 } };
@@ -196,6 +198,11 @@ main(int argc, char *argv[])
         } else if (!strcmp(argv[0], "--bootloader") && argc >= 2) {
             bootloaders = (char **)realloc(bootloaders, sizeof(char *) * (num_bootloaders + 1));
             bootloaders[num_bootloaders++] = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--loaderconf") && argc >= 2) {
+            loader_confs = (char **)realloc(loader_confs, sizeof(char *) * (num_loader_confs + 1));
+            loader_confs[num_loader_confs++] = argv[1];
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--efihob") && argc >= 2) {
@@ -463,7 +470,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 5)) {
-        if (calculate_pcr5(pcr[5], &evlog, efi_gpt)) {
+        if (calculate_pcr5(pcr[5], &evlog, efi_gpt, (const char **)loader_confs, num_loader_confs)) {
             printf("Failed to calculate event log for PCR 5\n");
             goto out;
         }
