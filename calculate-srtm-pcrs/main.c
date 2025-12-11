@@ -48,17 +48,17 @@ print_usage(const char *progname)
     printf("\t     --acpitables\t\tPath to QEMU etc/acpi/tables file for PCR1\n");
     printf("\t     --tableloader\t\tPath to QEMU etc/table-loader file for PCR1\n");
     printf("\t     --tpmlog\t\t\tPath to QEMU etc/tpm/log file for PCR1\n");
-    printf("\t     --sbatlevel\t\t\tSBAT level string for measuring DBX authority into PCR7\n");
     printf(
         "\t     --path\t\t\tPath to folder/file to be extended into PCR9, e.g. kernel (multiple --path possible)\n");
     printf("\t     --bootorder <num>[,<num>,...]\t\tUEFI boot order variable as a comma separated list of integers\n");
     printf("\t     --bootxxxx <file> UEFI Boot#### variable data file as written to /sys/firmware/efi/efivars (multiple possible)\n");
     printf("\t     --nobootvars\t\t\tDo not measure and UEFI boot variables\n");
-    printf("\t     --secureboot <file> UEFI secure boot SecureBoot variable data file\n");
-    printf("\t     --pk <file> UEFI secure boot Platform Key (PK) variable data file\n");
-    printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file\n");
-    printf("\t     --db <file> UEFI secure boot DB variable data file\n");
-    printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
+    printf("\t     --secureboot <file> UEFI secure boot SecureBoot variable data file to be measured into PCR7\n");
+    printf("\t     --pk <file> UEFI secure boot Platform Key (PK) variable data file to be measured into PCR7\n");
+    printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file to be measured into PCR7\n");
+    printf("\t     --db <file> UEFI secure boot DB variable data file to be measured into PCR7\n");
+    printf("\t     --dbx <file> UEFI secure boot DBX variable data file to be measured into PCR7\n");
+    printf("\t     --sbatlevel\t\t\tUEFI Secure Boot SbatLevel DBX authority variable data file to be measured into PCR7\n");
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --systemuuid\t\tPath to DMI System-UUID file to be extended into PCR6\n");
     printf("\t     --efihob\t\tPath to an EFI handoff table optionally measured into PCR1\n");
@@ -80,7 +80,7 @@ main(int argc, char *argv[])
     const char *efi_gpt = NULL;
     const char *system_uuid = NULL;
     const char *grubcmds = NULL;
-    const char *sbat_level = NULL;
+    const char *sbat_level_path = NULL;
     const char *dump_pei_path = NULL;
     const char *dump_dxe_path = NULL;
     const char *secure_boot_path = NULL;
@@ -242,7 +242,7 @@ main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--sbatlevel") && argc >= 2) {
-            sbat_level = argv[1];
+            sbat_level_path = argv[1];
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--cmdline") && argc >= 2) {
@@ -397,7 +397,6 @@ main(int argc, char *argv[])
     DEBUG("\tEventlog:   %d\n", print_event_log);
     DEBUG("\tSummary:    %d\n", print_summary);
     DEBUG("\tAggregate:  %d\n", print_aggregate);
-    DEBUG("\tSBAT Level: %s\n", sbat_level);
     for (size_t i = 0; i < num_uefi_drivers; i++) {
         DEBUG("\tUEFI driver: %s\n", uefi_drivers[i]);
     }
@@ -441,6 +440,9 @@ main(int argc, char *argv[])
     }
     if (dbx_path) {
         DEBUG("DBX path: %s\n", dbx_path);
+    }
+    if (sbat_level_path) {
+        DEBUG("\tDBX Authority (SBAT Level) path: %s\n", sbat_level_path);
     }
     for (size_t i = 0; i < num_moklists; i++) {
         DEBUG("Boot####: %s\n", moklists[i]);
@@ -493,7 +495,7 @@ main(int argc, char *argv[])
         }
     }
     if (contains(pcr_nums, len_pcr_nums, 7)) {
-        if (calculate_pcr7(pcr[7], &evlog, sbat_level, secure_boot_path, pk_path, kek_path, db_path,
+        if (calculate_pcr7(pcr[7], &evlog, sbat_level_path, secure_boot_path, pk_path, kek_path, db_path,
                            dbx_path)) {
             printf("Failed to calculate event log for PCR 7\n");
             goto out;

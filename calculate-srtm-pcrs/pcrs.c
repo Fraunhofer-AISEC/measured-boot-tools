@@ -660,7 +660,7 @@ calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file)
  * @param evlog The event log to record the extend operations in
  */
 int
-calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level, const char *secure_boot,
+calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level_path, const char *secure_boot,
                const char *pk, const char *kek, const char *db, const char *dbx)
 {
     memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
@@ -687,16 +687,16 @@ calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level, const ch
     hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
     // Measure dbx authority (EV_EFI_VARIABLE_AUTHORITY)
-    if (sbat_level) {
+    if (sbat_level_path) {
         EFI_GUID efiImageSecurityDatabase1SbatLevelGuid =
             EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL_GUID;
 
         variable_type_t var = { .event_type = "EV_EFI_VARIABLE_AUTHORITY",
                                 .variable_name = EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL,
                                 .vendor_guid = &efiImageSecurityDatabase1SbatLevelGuid,
-                                .path = NULL,
-                                .data = (uint8_t *)sbat_level,
-                                .data_size = strlen(sbat_level) };
+                                .path = sbat_level_path,
+                                .data = NULL,
+                                .data_size = 0 };
 
         ret = measure_variable(EVP_sha256(), pcr, 7, evlog, var);
         if (ret) {
