@@ -173,7 +173,7 @@ calculate_efi_boot_vars(const EVP_MD *md, uint8_t *mr, uint32_t mr_index, eventl
     int ret = -1;
 
     // EV_EFI_VARIABLE_BOOT Boot Order
-    print_data_debug((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "BOOT ORDER");
+    print_data_debug((uint8_t *)boot_order, len_boot_order * sizeof(uint16_t), "The UEFI BootOrder variable raw data is");
     uint8_t hash_efi_variable_boot[EVP_MD_size(md)];
     hash_buf(md, hash_efi_variable_boot, (uint8_t *)boot_order,
              len_boot_order * sizeof(uint16_t));
@@ -189,6 +189,7 @@ calculate_efi_boot_vars(const EVP_MD *md, uint8_t *mr, uint32_t mr_index, eventl
             printf("failed to calculate efi load option\n");
             return -1;
         }
+        print_data_debug(efi_variable_boot0000, len, "The UEFI Boot0000 variable raw data is:");
         uint8_t hash_efi_variable_boot0000[EVP_MD_size(md)];
         hash_buf(md, hash_efi_variable_boot0000, efi_variable_boot0000, len);
         evlog_add(evlog, mr_index, "EV_EFI_VARIABLE_BOOT", hash_efi_variable_boot0000,

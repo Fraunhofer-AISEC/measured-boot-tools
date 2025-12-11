@@ -82,3 +82,51 @@ out:
 
     return 0;
 }
+
+int
+calculate_cmdline_narrow(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros,
+                            bool strip_newline, int pcr_num, const char *event_type)
+{
+    int ret = -1;
+    uint8_t *cmdline_buf = NULL;
+    uint64_t cmdline_size = 0;
+    ret = read_file(&cmdline_buf, &cmdline_size, cmdline);
+    if (ret != 0 || cmdline_size == 0) {
+        printf("Failed to load %s\n", cmdline);
+        goto out;
+    }
+
+    // Strip trailing newline if specified
+    if (strip_newline && cmdline_buf[cmdline_size - 1] == '\n') {
+        cmdline_buf[cmdline_size - 1] = '\0';
+        cmdline_size--;
+    }
+
+    uint8_t *cmdline_mod = (uint8_t *)malloc(cmdline_size + trailing_zeros);
+    memset(cmdline_mod, 0x0, cmdline_size + trailing_zeros);
+    memcpy(cmdline_mod, cmdline_buf, cmdline_size);
+
+    char *cmdline_str = (char *)malloc(cmdline_size + 1);
+    memset(cmdline_str, 0x0, cmdline_size + 1);
+    memcpy(cmdline_str, cmdline_buf, cmdline_size);
+
+    DEBUG("cmdline file size: %lu\n", cmdline_size);
+    DEBUG("cmdline strlen: %lu\n", strlen(cmdline_str));
+    DEBUG("cmdline: %s\n", cmdline_str);
+
+    uint8_t hash_cmdline[SHA256_DIGEST_LENGTH] = { 0x0 };
+    hash_buf(EVP_sha256(), hash_cmdline, (uint8_t *)cmdline_mod, cmdline_size);
+    evlog_add(evlog, pcr_num, event_type, hash_cmdline, (const char *)cmdline_str);
+
+    hash_extend(EVP_sha256(), pcr, hash_cmdline, SHA256_DIGEST_LENGTH);
+
+out:
+    if (cmdline_buf)
+        free(cmdline_buf);
+    if (cmdline_mod)
+        free(cmdline_mod);
+    if (cmdline_str)
+        free(cmdline_str);
+
+    return 0;
+}

@@ -512,6 +512,13 @@ main(int argc, char *argv[])
             goto out;
         }
     }
+    if (contains(pcr_nums, len_pcr_nums, 11)) {
+        if (calculate_pcr11(pcr[11], &evlog, cmdline, cmdline_trailing_zeros, cmdline_strip_newline, initrd, paths,
+                           num_paths)) {
+            printf("Failed to calculate event log for PCR 9\n");
+            goto out;
+        }
+    }
     if (contains(pcr_nums, len_pcr_nums, 12)) {
         if (calculate_pcr12(pcr[12], &evlog, cmdline, cmdline_trailing_zeros, cmdline_strip_newline, initrd, qemu)) {
             printf("Failed to calculate event log for PCR 12\n");

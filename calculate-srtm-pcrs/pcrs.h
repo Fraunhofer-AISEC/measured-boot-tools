@@ -31,7 +31,7 @@ int
 calculate_pcr6(uint8_t *pcr, eventlog_t *evlog, const char *system_uuid_file);
 
 int
-calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level, const char *secure_boot,
+calculate_pcr7(uint8_t *pcr, eventlog_t *evlog, const char *sbat_level_path, const char *secure_boot,
                const char *pk, const char *kek, const char *db, const char *dbx);
 
 int

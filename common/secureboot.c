@@ -97,10 +97,13 @@ measure_variable(const EVP_MD *md, uint8_t *mr, uint32_t mr_index, eventlog_t *e
         return -1;
     }
 
+    DEBUG("The created UEFI variable raw data to be measured is:\n");
     print_data_debug((uint8_t *)data, data_size, name_narrow);
 
     uint8_t hash[EVP_MD_size(md)];
     hash_buf(md, hash, (uint8_t *)data, data_size);
+
+    print_data_debug(hash, EVP_MD_size(md), "The resulting hash is");
 
     evlog_add(evlog, mr_index, var_type.event_type, hash, name_narrow);
 

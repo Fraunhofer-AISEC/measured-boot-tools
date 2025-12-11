@@ -803,6 +803,61 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
 }
 
 /**
+ * Calculates PCR 11
+ *
+ *
+ * @see https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/
+ *
+ * @param pcr Out buffer containing the final hash of the PCR
+ * @param evlog The event log to record the extend operations in
+ */
+int
+calculate_pcr11(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
+               const char *initrd, char **paths, size_t num_paths)
+{
+    int ret = -1;
+
+    memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
+
+    if (paths) {
+        ret = calculate_paths(pcr, evlog, paths, num_paths);
+        if (ret) {
+            printf("Failed to calculate paths\n");
+            return ret;
+        }
+    }
+
+    if (cmdline) {
+        ret = calculate_cmdline_narrow(pcr, evlog, cmdline, trailing_zeros, strip_newline, 11, "EV_IPL");
+        if (ret) {
+            printf("Failed to calculate cmdline\n");
+            return ret;
+        }
+    }
+
+    if (initrd) {
+        uint8_t *initrd_buf = NULL;
+        uint64_t initrd_size = 0;
+        ret = read_file(&initrd_buf, &initrd_size, initrd);
+        if (ret != 0) {
+            printf("Failed to load %s\n", initrd);
+            return ret;
+        }
+
+        uint8_t hash_initrd[SHA256_DIGEST_LENGTH] = { 0x0 };
+        hash_buf(EVP_sha256(), hash_initrd, initrd_buf, initrd_size);
+        evlog_add(evlog, 11, "EV_IPL", hash_initrd, initrd);
+
+        hash_extend(EVP_sha256(), pcr, hash_initrd, SHA256_DIGEST_LENGTH);
+        free(initrd_buf);
+    }
+
+    ret = 0;
+
+    return ret;
+}
+
+/**
  * Calculates PCR 12
  *
  *
