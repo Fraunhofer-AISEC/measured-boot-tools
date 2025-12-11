@@ -42,6 +42,7 @@
 #include "acpi.h"
 #include "secureboot.h"
 #include "cmdline.h"
+#include "efi_moklist.h"
 
 /**
  * Calculates PCR 0
@@ -802,7 +803,7 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
 }
 
 /**
- * Calculates PCR 9
+ * Calculates PCR 12
  *
  *
  * @see https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html
@@ -823,6 +824,27 @@ calculate_pcr12(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t tra
             printf("Failed to calculate cmdline\n");
             return ret;
         }
+    }
+
+    return 0;
+}
+
+/**
+ * Calculates PCR 14
+ *
+ * @param pcr Out buffer containing the final hash of the PCR
+ * @param evlog The event log to record the extend operations in
+ */
+int
+calculate_pcr14(uint8_t *pcr, eventlog_t *evlog, char **moklists, size_t num_moklists)
+{
+    memset(pcr, 0x0, SHA256_DIGEST_LENGTH);
+
+    // EV_IPL MokList variables
+    int ret = calculate_efi_moklist_vars(EVP_sha256(), pcr, 14, evlog, moklists, num_moklists);
+    if (ret) {
+        printf("Failed to calculate EFI boot variables\n");
+        return -1;
     }
 
     return 0;

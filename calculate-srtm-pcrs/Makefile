@@ -45,6 +45,7 @@ CSRS := \
 	../common/secureboot.c \
 	../common/acpi.c \
 	../common/gpt.c \
+	../common/efi_moklist.c \
 
 IFLAGS := $(ISRCS:%=-I%)
 

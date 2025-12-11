@@ -62,6 +62,7 @@ print_usage(const char *progname)
     printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
     printf("\t     --systemuuid\t\tPath to DMI System-UUID file to be extended into PCR6\n");
     printf("\t     --efihob\t\tPath to an EFI handoff table optionally measured into PCR1\n");
+    printf("\t     --moklist <file> UEFI MokList variable data file as written to /sys/firmware/efi/efivars (multiple possible)\n");
     printf("\t     --dumppei\t\t\tOptional path to folder to dump the measured PEIFV\n");
     printf("\t     --dumpdxe\t\t\tOptional path to folder to dump the measured DXEFV\n");
     printf("\n");
@@ -102,6 +103,8 @@ main(int argc, char *argv[])
     char *boot_order_str;
     char **bootxxxx = NULL;
     size_t num_bootxxxx = 0;
+    char **moklists = NULL;
+    size_t num_moklists = 0;
     bool no_boot_vars = false;
     const char *progname = argv[0];
     char **uefi_drivers = NULL;
@@ -333,6 +336,11 @@ main(int argc, char *argv[])
             no_boot_vars = true;
             argv++;
             argc--;
+        } else if (!strcmp(argv[0], "--moklist") && argc >= 2) {
+            moklists = (char **)realloc(moklists, sizeof(char *) * (num_moklists + 1));
+            moklists[num_moklists++] = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--dumppei")) {
             dump_pei_path = argv[1];
             argv += 2;
@@ -434,6 +442,9 @@ main(int argc, char *argv[])
     if (dbx_path) {
         DEBUG("DBX path: %s\n", dbx_path);
     }
+    for (size_t i = 0; i < num_moklists; i++) {
+        DEBUG("Boot####: %s\n", moklists[i]);
+    }
 
     uint8_t pcr[MAX_PCRS][SHA256_DIGEST_LENGTH];
 
@@ -504,6 +515,12 @@ main(int argc, char *argv[])
     if (contains(pcr_nums, len_pcr_nums, 12)) {
         if (calculate_pcr12(pcr[12], &evlog, cmdline, cmdline_trailing_zeros, cmdline_strip_newline, initrd, qemu)) {
             printf("Failed to calculate event log for PCR 12\n");
+            goto out;
+        }
+    }
+    if (contains(pcr_nums, len_pcr_nums, 14)) {
+        if (calculate_pcr14(pcr[14], &evlog, moklists, num_moklists)) {
+            printf("Failed to calculate event log for PCR 14\n");
             goto out;
         }
     }
@@ -614,6 +631,9 @@ out:
     }
     if (bootxxxx) {
         free(bootxxxx);
+    }
+    if (moklists) {
+        free(moklists);
     }
     if (boot_order) {
         free(boot_order);

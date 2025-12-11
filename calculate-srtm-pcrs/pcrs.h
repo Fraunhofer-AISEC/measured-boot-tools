@@ -44,3 +44,6 @@ calculate_pcr9(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trai
 int
 calculate_pcr12(uint8_t *pcr, eventlog_t *evlog, const char *cmdline, size_t trailing_zeros, bool strip_newline,
                const char *initrd, bool qemu);
+
+int
+calculate_pcr14(uint8_t *pcr, eventlog_t *evlog, char **moklists, size_t num_moklists);
