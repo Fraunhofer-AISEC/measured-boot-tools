@@ -313,7 +313,7 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const c
             printf("Failed to write kernel to %s\n", dump_kernel_path);
             goto out;
         }
-        DEBUG("Wrote PEIFV to %s\n", dump_kernel_path);
+        DEBUG("Wrote kernel to %s\n", dump_kernel_path);
     }
 
     // TCG PCClient Firmware Spec:
