@@ -413,6 +413,7 @@ calculate_pcr4(uint8_t *pcr, eventlog_t *evlog, const char *kernel_file, const c
                 ret = config_load(&config, config_file);
                 if (ret != 0) {
                     printf("Failed to load kernel setup header configuration\n");
+                    free(kernel_buf);
                     return -1;
                 }
             }
@@ -494,6 +495,7 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table,
     hash_buf(EVP_sha256(), hash_ev_separator, ev_separator, 4);
     OPENSSL_free(ev_separator);
     evlog_add(evlog, 5, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
+    hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
 
     // Calculate UEFI GPT partition table if provided. The table must be provided in the
     // measurement format, i.e. the header followed by an 8-byte little endian number
@@ -557,6 +559,7 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table,
              strlen(efi_action_boot_invocation));
     evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_invocation,
               "HASH('Exit Boot Services Invocation')");
+    hash_extend(EVP_sha256(), pcr, hash_efi_action_boot_invocation, SHA256_DIGEST_LENGTH);
 
     // EV_EFI_ACTION "Exit Boot Services Returned with Success"
     char *efi_action_boot_exit = "Exit Boot Services Returned with Success";
@@ -565,9 +568,6 @@ calculate_pcr5(uint8_t *pcr, eventlog_t *evlog, const char *efi_partition_table,
              strlen(efi_action_boot_exit));
     evlog_add(evlog, 5, "EV_EFI_ACTION", hash_efi_action_boot_exit,
               "HASH('Exit Boot Services Returned with Success')");
-
-    hash_extend(EVP_sha256(), pcr, hash_ev_separator, SHA256_DIGEST_LENGTH);
-    hash_extend(EVP_sha256(), pcr, hash_efi_action_boot_invocation, SHA256_DIGEST_LENGTH);
     hash_extend(EVP_sha256(), pcr, hash_efi_action_boot_exit, SHA256_DIGEST_LENGTH);
 
     ret = 0;
