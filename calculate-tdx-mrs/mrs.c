@@ -42,6 +42,7 @@
 #include "efi_boot.h"
 #include "secureboot.h"
 #include "mrs.h"
+#include "gpt.h"
 
 extern EFI_GUID gEfiImageSecurityDatabaseGuid;
 
@@ -161,7 +162,8 @@ int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
                 acpi_files_t *cfg, const char *ovmf_version,
                 uint16_t *boot_order, size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx,
-                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx)
+                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx,
+                const char *sbat_level_path)
 {
     int ret = -1;
     long len = 0;
@@ -235,6 +237,25 @@ calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
         goto out;
     }
 
+    // EV_EFI_VARIABLE_AUTHORITY SbatLevel
+    if (sbat_level_path) {
+        EFI_GUID efiImageSecurityDatabase1SbatLevelGuid =
+            EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL_GUID;
+
+        variable_type_t var = { .event_type = "EV_EFI_VARIABLE_AUTHORITY",
+                                .variable_name = EFI_IMAGE_SECURITY_DATABASE1_SBATLEVEL,
+                                .vendor_guid = &efiImageSecurityDatabase1SbatLevelGuid,
+                                .path = sbat_level_path,
+                                .data = NULL,
+                                .data_size = 0 };
+
+        ret = measure_variable(EVP_sha384(), mr, INDEX_RTMR0, evlog, var);
+        if (ret) {
+            printf("Failed to measure sbatlevel variable\n");
+            goto out;
+        }
+    }
+
     // Terminating EV_SEPARATOR is extended only in edk2-stable202408.01
     if (!strcmp(ovmf_version, "edk2-stable202408.01")) {
         // EV_SEPARATOR
@@ -262,7 +283,9 @@ out:
  */
 int
 calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
-                const char *dump_kernel_path, const char *ovmf_version)
+                const char *dump_kernel_path, const char *ovmf_version,
+                const char **bootloader_files, size_t num_bootloader_files,
+                const char *efi_partition_table)
 {
     int ret = -1;
 
@@ -271,49 +294,57 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const c
     memset(mr, 0x0, SHA384_DIGEST_LENGTH);
 
     // Measure kernel
-    uint8_t hash_kernel[SHA384_DIGEST_LENGTH] = { 0 };
-    uint8_t *kernel_buf = NULL;
-    uint64_t kernel_size = 0;
+    if (kernel_file) {
+        uint8_t hash_kernel[SHA384_DIGEST_LENGTH] = { 0 };
+        uint8_t *kernel_buf = NULL;
+        uint64_t kernel_size = 0;
 
-    ret = LoadPeImage(&kernel_buf, &kernel_size, kernel_file);
-    if (ret != 0) {
-        goto out;
-    }
+        ret = LoadPeImage(&kernel_buf, &kernel_size, kernel_file);
+        if (ret != 0) {
+            printf("Failed to load kernel image %s\n", kernel_file);
+            return -1;
+        }
 
-    if (config_file) {
-        // Load configuration variables
-        config_t config = { 0 };
         if (config_file) {
-            ret = config_load(&config, config_file);
+            // Load configuration variables
+            config_t config = { 0 };
+            if (config_file) {
+                ret = config_load(&config, config_file);
+                if (ret != 0) {
+                    printf("Failed to load configuration\n");
+                    free(kernel_buf);
+                    return -1;
+                }
+            }
+
+            ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, &config);
             if (ret != 0) {
-                printf("Failed to load configuration\n");
-                goto out;
+                printf("Failed to prepare kernel PE/COFF image\n");
+                free(kernel_buf);
+                return -1;
             }
         }
 
-        ret = config_prepare_kernel_pecoff(kernel_buf, kernel_size, &config);
-        if (ret != 0) {
-            printf("Failed to prepare kernel PE/COFF image\n");
-            goto out;
+        EFI_STATUS status = MeasurePeImage(EVP_sha384(), hash_kernel, kernel_buf, kernel_size);
+        if (EFI_ERROR(status)) {
+            printf("printf: Failed to measure PE Image: %llx\n", status);
+            free(kernel_buf);
+            return -1;
         }
-    }
+        evlog_add(evlog, INDEX_RTMR1, basename((char *)kernel_file), hash_kernel,
+                "Linux Kernel PE/COFF Image");
 
-    EFI_STATUS status = MeasurePeImage(EVP_sha384(), hash_kernel, kernel_buf, kernel_size);
-    if (EFI_ERROR(status)) {
-        printf("printf: Failed to measure PE Image: %llx\n", status);
-        goto out;
-    }
-    evlog_add(evlog, INDEX_RTMR1, basename((char *)kernel_file), hash_kernel,
-              "Linux Kernel PE/COFF Image");
+        hash_extend(EVP_sha384(), mr, hash_kernel, SHA384_DIGEST_LENGTH);
 
-    hash_extend(EVP_sha384(), mr, hash_kernel, SHA384_DIGEST_LENGTH);
-
-    if (dump_kernel_path) {
-        if (write_file(kernel_buf, kernel_size, dump_kernel_path)) {
-            printf("Failed to write kernel to %s\n", dump_kernel_path);
-            goto out;
+        if (dump_kernel_path) {
+            if (write_file(kernel_buf, kernel_size, dump_kernel_path)) {
+                printf("Failed to write kernel to %s\n", dump_kernel_path);
+                free(kernel_buf);
+                return -1;
+            }
+            DEBUG("Wrote kernel to %s\n", dump_kernel_path);
         }
-        DEBUG("Wrote kernel to %s\n", dump_kernel_path);
+        free(kernel_buf);
     }
 
     // TCG PCClient Firmware Spec:
@@ -325,17 +356,85 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const c
     hash_extend(EVP_sha384(), mr, hash_efi_action0, SHA384_DIGEST_LENGTH);
 
     // Terminating EV_SEPARATOR is extended only in newer versions
-    uint8_t *ev_separator = NULL;
     if (strcmp(ovmf_version, "edk2-stable202408.01")) {
-        ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
+        uint8_t *ev_separator = OPENSSL_hexstr2buf("00000000", NULL);
         if (!ev_separator) {
             printf("Failed to allocate memory for ev separator\n");
-            goto out;
+            return -1;
         }
         uint8_t hash_ev_separator[SHA384_DIGEST_LENGTH];
         hash_buf(EVP_sha384(), hash_ev_separator, ev_separator, 4);
         evlog_add(evlog, INDEX_RTMR1, "EV_SEPARATOR", hash_ev_separator, "HASH(00000000)");
         hash_extend(EVP_sha384(), mr, hash_ev_separator, SHA384_DIGEST_LENGTH);
+        OPENSSL_free(ev_separator);
+    }
+
+    // EV_EFI_GPT_EVENT
+        // Calculate UEFI GPT partition table if provided. The table must be provided in the
+    // measurement format, i.e. the header followed by an 8-byte little endian number
+    // of partion entries followed by all non-zero entries (as defined in OVMF EFI_GPT_DATA
+    // struct and measured in Tcg2MeasureGptTable())
+    if (efi_partition_table) {
+        uint8_t *gpt_buf = NULL;
+        uint64_t gpt_size = 0;
+        int ret = read_file(&gpt_buf, &gpt_size, efi_partition_table);
+        if (ret != 0) {
+            printf("Failed to load %s\n", efi_partition_table);
+            return -1;
+        }
+        if (gpt_size < 92) {
+            printf("GPT file too small\n");
+            ret = -1;
+            free(gpt_buf);
+            return -1;
+        }
+
+        uint8_t hash_gpt[SHA384_DIGEST_LENGTH];
+        hash_buf(EVP_sha384(), hash_gpt, gpt_buf, gpt_size);
+
+        char *description = write_gpt_header((UEFI_PARTITION_TABLE_HEADER *)gpt_buf);
+        if (!description) {
+            printf("Failed to write GPT header\n");
+            ret = -1;
+            free(gpt_buf);
+            return -1;
+        }
+
+        evlog_add(evlog, INDEX_RTMR1, "EV_EFI_GPT_EVENT", hash_gpt, description);
+        hash_extend(EVP_sha384(), mr, hash_gpt, SHA384_DIGEST_LENGTH);
+        free(description);
+        free(gpt_buf);
+    }
+
+    // EV_EFI_BOOT_SERVICES_APPLICATION
+    if (bootloader_files) {
+        for (size_t i = 0; i < num_bootloader_files; i++) {
+            if (!bootloader_files[i]) {
+                printf("bootloader file is nil\n");
+                return -1;
+            }
+
+            uint8_t hash_bl[SHA384_DIGEST_LENGTH] = { 0 };
+            uint8_t *bl_buf = NULL;
+            uint64_t bl_size = 0;
+
+            ret = LoadPeImage(&bl_buf, &bl_size, bootloader_files[i]);
+            if (ret != 0) {
+                printf("Failed to load bootloader image %s\n", bootloader_files[i]);
+                return -1;
+            }
+
+            EFI_STATUS status = MeasurePeImage(EVP_sha384(), hash_bl, bl_buf, bl_size);
+            if (EFI_ERROR(status)) {
+                printf("printf: Failed to measure PE Image: %llx\n", status);
+                free(bl_buf);
+            }
+            evlog_add(evlog, INDEX_RTMR1, "EV_EFI_BOOT_SERVICES_APPLICATION", hash_bl,
+                      basename((char *)bootloader_files[i]));
+
+            hash_extend(EVP_sha384(), mr, hash_bl, SHA384_DIGEST_LENGTH);
+            free(bl_buf);
+        }
     }
 
     char *action_data1 = EFI_EXIT_BOOT_SERVICES_INVOCATION;
@@ -351,12 +450,6 @@ calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const c
     hash_extend(EVP_sha384(), mr, hash_efi_action2, SHA384_DIGEST_LENGTH);
 
     ret = 0;
-
-out:
-    if (kernel_buf)
-        OPENSSL_free(kernel_buf);
-    if (ev_separator)
-        OPENSSL_free(ev_separator);
 
     return ret;
 }

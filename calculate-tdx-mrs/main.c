@@ -44,6 +44,7 @@ print_usage(const char *progname)
     printf("\t     --ovmfversion <string>\tThe version of the OVMF image. Default: edk2-stable202502\n");
     printf("\t-k,  --kernel <file>\t\tThe filename of the kernel image\n");
     printf("\t-r,  --ramdisk <file>\t\tThe filename of the initramfs\n");
+    printf("\t     --bootloader\t\t\tBootloader EFI image to be measured into RTMR1 (multiple --bootloader possible)\n");
     printf("\t-f,  --format <text|json>\tThe output format, can be either 'json' or 'text'\n");
     printf("\t-e,  --eventlog\t\t\tPrint detailed eventlog\n");
     printf("\t-s,  --summary\t\t\tPrint final MR values\n");
@@ -62,7 +63,8 @@ print_usage(const char *progname)
     printf("\t     --kek <file> UEFI secure boot Key Exchange Key (KEK) variable data file\n");
     printf("\t     --db <file> UEFI secure boot DB variable data file\n");
     printf("\t     --dbx <file> UEFI secure boot DBX variable data file\n");
-    printf("\t     --gpt\t\t\tPath to EFI GPT partition table file to be extended into PCR5\n");
+    printf("\t     --sbatlevel\t\t\tUEFI Secure Boot SbatLevel DBX authority variable data file to be measured into RTMR0\n");
+    printf("\t     --gpt\t\t\tPath to EFI GPT partition table file\n");
     printf("\t-q   --qemuversion\t\tQEMU version (default: 9.2.0)\n");
     printf("\t     --dumpkernel\t\tOptional path to folder to dump the measured kernel\n");
     printf("\n");
@@ -97,6 +99,8 @@ main(int argc, char *argv[])
     const char *mrtd = NULL;
     const char *tdx_module = NULL;
     const char *mrseam = NULL;
+    char **bootloaders = NULL;
+    size_t num_bootloaders = 0;
     const char *dump_kernel_path = NULL;
     const char *ovmf_version = "edk2-stable202502";
     const char *secure_boot_path = NULL;
@@ -104,6 +108,7 @@ main(int argc, char *argv[])
     const char *kek_path = NULL;
     const char *db_path = NULL;
     const char *dbx_path = NULL;
+    const char *sbat_level_path = NULL;
     uint16_t *boot_order = NULL;
     size_t len_boot_order = 0;
     char *boot_order_str;
@@ -127,6 +132,7 @@ main(int argc, char *argv[])
         .table_loader_size = -1,
     };
     const char *qemu_version = "9.2.0";
+    const char *efi_gpt = NULL;
 
     argv++;
     argc--;
@@ -172,6 +178,11 @@ main(int argc, char *argv[])
             argc -= 2;
         } else if (!strcmp(argv[0], "--mrtd") && argc >= 2) {
             mrtd = argv[1];
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--bootloader") && argc >= 2) {
+            bootloaders = (char **)realloc(bootloaders, sizeof(char *) * (num_bootloaders + 1));
+            bootloaders[num_bootloaders++] = argv[1];
             argv += 2;
             argc -= 2;
         } else if (!strcmp(argv[0], "--ovmfversion") && argc >= 2) {
@@ -242,6 +253,10 @@ main(int argc, char *argv[])
             dbx_path = argv[1];
             argv += 2;
             argc -= 2;
+        } else if (!strcmp(argv[0], "--sbatlevel") && argc >= 2) {
+            sbat_level_path = argv[1];
+            argv += 2;
+            argc -= 2;
         } else if (!strcmp(argv[0], "--bootorder") && argc >= 2) {
             boot_order_str = (char *)malloc(strlen(argv[1]) + 1);
             if (!boot_order_str) {
@@ -257,6 +272,10 @@ main(int argc, char *argv[])
                 pch = strtok(NULL, ",");
                 len_boot_order++;
             }
+            argv += 2;
+            argc -= 2;
+        } else if (!strcmp(argv[0], "--gpt")) {
+            efi_gpt = argv[1];
             argv += 2;
             argc -= 2;
         } else if ((!strcmp(argv[0], "-f") || !strcmp(argv[0], "--format")) && argc >= 2) {
@@ -316,12 +335,6 @@ main(int argc, char *argv[])
         len_boot_order = 1;
     }
 
-
-    if (!kernel && contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
-        printf("Kernel must be specified\n");
-        print_usage(progname);
-        goto out;
-    }
     if (!ovmf && !mrtd && (contains(mr_nums, len_mr_nums, INDEX_MRTD) ||
                   contains(mr_nums, len_mr_nums, INDEX_MRTD))) {
         printf("OVMF or MRTD hash must be specified\n");
@@ -367,6 +380,9 @@ main(int argc, char *argv[])
     if (tdx_module) {
         DEBUG("\tTDX-Module: %s\n", tdx_module);
     }
+    for (size_t i = 0; i < num_bootloaders; i++) {
+        DEBUG("\tBootloader: %s\n", bootloaders[i]);
+    }
     DEBUG("\tEventlog:   %d\n", print_event_log);
     DEBUG("\tSummary:    %d\n", print_summary);
     if (dump_kernel_path) {
@@ -397,6 +413,9 @@ main(int argc, char *argv[])
     if (dbx_path) {
         DEBUG("DBX path: %s\n", dbx_path);
     }
+    if (sbat_level_path) {
+        DEBUG("\tDBX Authority (SBAT Level) path: %s\n", sbat_level_path);
+    }
     DEBUG("OVMF version: %s\n", ovmf_version);
     DEBUG("QEMU version: %s\n", qemu_version);
 
@@ -419,7 +438,8 @@ main(int argc, char *argv[])
     if (contains(mr_nums, len_mr_nums, INDEX_RTMR0)) {
         if (calculate_rtmr0(mrs[INDEX_RTMR0], &evlog, ovmf, &acpi_files, ovmf_version,
                             boot_order, len_boot_order, bootxxxx, num_bootxxxx,
-                            secure_boot_path, pk_path, kek_path, db_path, dbx_path)) {
+                            secure_boot_path, pk_path, kek_path, db_path, dbx_path,
+                            sbat_level_path)) {
             printf("Failed to calculate event log for RTMR 0\n");
             goto out;
         }
@@ -427,7 +447,7 @@ main(int argc, char *argv[])
 
     if (contains(mr_nums, len_mr_nums, INDEX_RTMR1)) {
         if (calculate_rtmr1(mrs[INDEX_RTMR1], &evlog, kernel, config_file, dump_kernel_path,
-                            ovmf_version)) {
+                            ovmf_version, (const char **)bootloaders, num_bootloaders, efi_gpt)) {
             printf("Failed to calculate event log for RTMR 1\n");
             goto out;
         }
@@ -522,6 +542,8 @@ out:
     if (boot_order) {
         free(boot_order);
     }
+    if (bootloaders)
+        free(bootloaders);
 
     return ret;
 }

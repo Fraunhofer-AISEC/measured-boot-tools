@@ -14,11 +14,14 @@ int
 calculate_rtmr0(uint8_t *mr, eventlog_t *evlog, const char *ovmf_file,
                 acpi_files_t *cfg, const char *ovmf_version,
                 uint16_t *boot_order, size_t len_boot_order, char **bootxxxx, size_t num_bootxxxx,
-                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx);
+                const char *secure_boot, const char *pk, const char *kek, const char *db, const char *dbx,
+                const char *sbat_level_path);
 
 int
 calculate_rtmr1(uint8_t *mr, eventlog_t *evlog, const char *kernel_file, const char *config_file,
-                const char *dump_kernel_path, const char *ovmf_version);
+                const char *dump_kernel_path, const char *ovmf_version,
+                const char **bootloader_files, size_t num_bootloader_files,
+                const char *efi_partition_table);
 
 int
 calculate_rtmr2(uint8_t *mr, eventlog_t *evlog, const char *cmdline_file, size_t trailing_zeros, bool strip_newline);
