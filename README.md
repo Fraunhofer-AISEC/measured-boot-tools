@@ -1,6 +1,6 @@
 # Measured Boot Tools
 
-> :warning: **Note:** These tools are work in progress and not to be used in production!
+> :warning: **Note:** The functionality of the measured-boot-tools has been migrated to the [mrtool](https://github.com/Fraunhofer-AISEC/cmc/blob/main/tools/mrtool/README.md)
 
 ## Overview
 
